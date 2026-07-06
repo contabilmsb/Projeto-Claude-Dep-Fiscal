@@ -38,7 +38,11 @@ app.add_middleware(
 
 STATIC_DIR = Path(__file__).parent / "static"
 OUTPUT_DIR = Path(__file__).parent.parent / "output"
-OUTPUT_DIR.mkdir(exist_ok=True)
+# Cria apenas localmente; no Vercel o filesystem é read-only
+try:
+    OUTPUT_DIR.mkdir(exist_ok=True)
+except OSError:
+    OUTPUT_DIR = Path(tempfile.gettempdir())
 
 COFINS_RATE = 0.03
 PIS_RATE    = 0.0065
@@ -110,8 +114,16 @@ def _session_get(session_id: str) -> dict | None:
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    html_path = STATIC_DIR / "index.html"
-    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+    # Tenta caminhos possíveis (local e Vercel)
+    candidates = [
+        STATIC_DIR / "index.html",
+        Path(__file__).parent / "static" / "index.html",
+        Path(__file__).parent.parent / "web" / "static" / "index.html",
+    ]
+    for p in candidates:
+        if p.exists():
+            return HTMLResponse(content=p.read_text(encoding="utf-8"))
+    raise HTTPException(status_code=404, detail="index.html não encontrado")
 
 
 @app.post("/processar")
