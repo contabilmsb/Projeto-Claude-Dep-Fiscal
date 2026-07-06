@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Apuração PIS/COFINS — MSB Medical</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --navy:    #1B2A4A;
+  --blue:    #2563EB;
+  --blue-lt: #3B82F6;
+  --green:   #10B981;
+  --amber:   #F59E0B;
+  --red:     #EF4444;
+  --purple:  #7C3AED;
+  --gray50:  #F8FAFC;
+  --gray100: #F1F5F9;
+  --gray200: #E2E8F0;
+  --gray400: #94A3B8;
+  --gray600: #475569;
+  --gray800: #1E293B;
+  --white:   #FFFFFF;
+  --shadow:  0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+  --radius:  10px;
+  --sidebar: 220px;
+  --header:  56px;
+}
+
+html, body { height: 100%; overflow: hidden; }
+body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--gray50); color: var(--gray800); display: flex; }
+
+/* ── Sidebar ── */
+#sidebar { width: var(--sidebar); background: var(--navy); display: flex; flex-direction: column; flex-shrink: 0; height: 100vh; }
+.sb-brand { padding: 18px 16px 14px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.sb-brand .logo { font-size: 10px; font-weight: 700; letter-spacing: 1.8px; color: rgba(255,255,255,.4); text-transform: uppercase; }
+.sb-brand h1 { font-size: 16px; font-weight: 800; color: #fff; margin-top: 3px; line-height: 1.25; }
+.sb-brand .badge { display: inline-block; margin-top: 5px; font-size: 9px; font-weight: 700; background: rgba(37,99,235,.35); color: #93C5FD; padding: 2px 8px; border-radius: 20px; letter-spacing: .3px; }
+.sb-nav { padding: 10px 0; flex: 1; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; cursor: pointer; color: rgba(255,255,255,.55); font-size: 13px; font-weight: 500; transition: all .15s; border-left: 3px solid transparent; user-select: none; }
+.nav-item svg { opacity: .65; flex-shrink: 0; }
+.nav-item:hover:not(.disabled) { background: rgba(255,255,255,.07); color: #fff; }
+.nav-item.active { background: rgba(37,99,235,.22); color: #fff; border-left-color: var(--blue-lt); }
+.nav-item.active svg { opacity: 1; }
+.nav-item.disabled { opacity: .3; cursor: not-allowed; }
+.sb-footer { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.08); font-size: 10px; color: rgba(255,255,255,.25); }
+
+/* ── Shell ── */
+#main { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.page-header { height: var(--header); min-height: var(--header); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; border-bottom: 1px solid var(--gray200); background: var(--white); flex-shrink: 0; }
+.page-header h2 { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.page-header p { font-size: 12px; color: var(--gray400); }
+.comp-badge { display: inline-block; background: rgba(37,99,235,.1); color: var(--blue); padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+
+/* ── Pages ── */
+.page { display: none; flex: 1; overflow: hidden; }
+.page.active { display: flex; flex-direction: column; }
+
+/* ══════════════════════════════════
+   UPLOAD PAGE
+══════════════════════════════════ */
+.upload-body { flex: 1; display: grid; grid-template-columns: 1fr 340px; overflow: hidden; }
+
+/* Left: file slots */
+.upload-left { padding: 20px 20px 20px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.upload-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.file-slot { border: 2px dashed var(--gray200); border-radius: var(--radius); padding: 14px 10px; text-align: center; cursor: pointer; transition: all .2s; position: relative; background: var(--white); }
+.file-slot:hover { border-color: var(--blue); background: #EFF6FF; }
+.file-slot.uploaded { border-color: var(--green); border-style: solid; background: #F0FDF4; }
+.file-slot input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.file-slot .slot-icon { font-size: 22px; margin-bottom: 4px; line-height: 1; }
+.file-slot .slot-label { font-size: 11px; font-weight: 700; color: var(--gray600); }
+.file-slot .slot-name { font-size: 10px; color: var(--gray400); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-slot.uploaded .slot-label { color: var(--green); }
+
+/* Right: config panel */
+.upload-right { background: var(--white); border-left: 1px solid var(--gray200); padding: 24px 24px; display: flex; flex-direction: column; gap: 18px; }
+.upload-right h3 { font-size: 13px; font-weight: 700; color: var(--gray600); text-transform: uppercase; letter-spacing: .5px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: 12px; font-weight: 600; color: var(--gray600); }
+.form-group input, .form-group textarea { border: 1px solid var(--gray200); border-radius: 8px; padding: 9px 12px; font-size: 13px; color: var(--gray800); background: var(--gray50); transition: border .15s; font-family: inherit; }
+.form-group input:focus, .form-group textarea:focus { outline: none; border-color: var(--blue); background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+.form-group textarea { resize: none; }
+
+.upload-status-box { background: var(--gray50); border: 1px solid var(--gray200); border-radius: 8px; padding: 12px; flex: 1; }
+.status-item { display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 3px 0; border-bottom: 1px solid var(--gray100); }
+.status-item:last-child { border-bottom: none; }
+.status-item .si-label { color: var(--gray600); }
+.status-item .si-ok { color: var(--green); font-weight: 700; }
+.status-item .si-pend { color: var(--gray400); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 700; border: none; cursor: pointer; transition: all .15s; width: 100%; }
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #1D4ED8; }
+.btn-primary:disabled { opacity: .35; cursor: not-allowed; }
+.btn-success { background: var(--green); color: #fff; }
+.btn-success:hover { background: #059669; }
+
+.progress-bar { height: 3px; background: var(--gray200); border-radius: 2px; overflow: hidden; display: none; }
+.progress-fill { height: 100%; background: var(--blue); animation: prog 1.5s ease-in-out infinite; }
+@keyframes prog { 0%{width:0%} 50%{width:70%} 100%{width:95%} }
+.error-msg { font-size: 12px; color: var(--red); display: none; padding: 8px 10px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FECACA; }
+
+/* ══════════════════════════════════
+   DASHBOARD PAGE
+══════════════════════════════════ */
+.dash-body { flex: 1; display: grid; grid-template-columns: 1fr 380px; grid-template-rows: 1fr; overflow: hidden; }
+
+/* Left col: cards + charts */
+.dash-left { display: flex; flex-direction: column; overflow-y: auto; padding: 18px 18px 18px 28px; gap: 16px; }
+
+/* Right col: table + alerts */
+.dash-right { background: var(--white); border-left: 1px solid var(--gray200); display: flex; flex-direction: column; overflow: hidden; }
+
+/* Cards 2x2 */
+.cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex-shrink: 0; }
+.card { background: var(--white); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); border-left: 4px solid transparent; }
+.card.accent-base   { border-left-color: var(--gray400); }
+.card.accent-blue   { border-left-color: var(--blue); }
+.card.accent-amber  { border-left-color: var(--amber); }
+.card.accent-red    { border-left-color: var(--red); }
+.card-label { font-size: 11px; font-weight: 700; color: var(--gray400); text-transform: uppercase; letter-spacing: .5px; }
+.card-value { font-size: 19px; font-weight: 800; margin-top: 4px; color: var(--gray800); }
+.card.accent-blue  .card-value { color: var(--blue); }
+.card.accent-amber .card-value { color: var(--amber); }
+.card.accent-red   .card-value { color: var(--red); }
+.card-sub { font-size: 10px; color: var(--gray400); margin-top: 3px; line-height: 1.4; }
+
+/* Charts 2 col */
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex-shrink: 0; }
+.chart-card { background: var(--white); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+.chart-card h3 { font-size: 11px; font-weight: 700; color: var(--gray600); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 12px; }
+.chart-wrap { position: relative; height: 180px; }
+
+/* Composition table */
+.section-label { font-size: 11px; font-weight: 700; color: var(--gray600); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+.comp-table { width: 100%; border-collapse: collapse; background: var(--white); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); font-size: 12px; }
+.comp-table th { background: var(--gray100); font-size: 10px; font-weight: 700; color: var(--gray600); text-transform: uppercase; letter-spacing: .4px; padding: 7px 12px; text-align: left; }
+.comp-table td { padding: 7px 12px; border-top: 1px solid var(--gray100); }
+.comp-table tr:last-child td { font-weight: 700; background: var(--gray50); border-top: 2px solid var(--gray200); }
+.mini-bar { height: 5px; border-radius: 3px; min-width: 3px; display: inline-block; }
+
+/* Right panel tabs */
+.right-tabs { display: flex; border-bottom: 1px solid var(--gray200); flex-shrink: 0; }
+.rtab { flex: 1; padding: 10px; font-size: 12px; font-weight: 600; color: var(--gray400); cursor: pointer; text-align: center; border-bottom: 2px solid transparent; transition: all .15s; }
+.rtab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.rtab-panel { display: none; flex: 1; overflow-y: auto; padding: 14px; }
+.rtab-panel.active { display: block; }
+
+/* Alert boxes */
+.alert-box { display: flex; gap: 10px; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; }
+.alert-box.warn { background: #FFFBEB; border: 1px solid #FDE68A; }
+.alert-box.ok   { background: #F0FDF4; border: 1px solid #BBF7D0; }
+.alert-icon { font-size: 16px; flex-shrink: 0; line-height: 1.4; }
+.alert-title { font-size: 11px; font-weight: 700; }
+.alert-desc  { font-size: 10px; color: var(--gray600); margin-top: 2px; line-height: 1.4; }
+.alert-nfs   { font-size: 10px; color: var(--gray400); margin-top: 3px; font-family: monospace; word-break: break-all; }
+
+/* Comp-detail table (right panel) */
+.detail-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.detail-table td { padding: 5px 6px; border-bottom: 1px solid var(--gray100); }
+.detail-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.detail-table tr:last-child td { font-weight: 700; border-top: 2px solid var(--gray200); border-bottom: none; }
+.dt-label { color: var(--gray600); }
+.dt-pos { color: var(--blue); }
+.dt-neg { color: var(--red); }
+.dt-total { color: var(--green); }
+
+/* ══════════════════════════════════
+   CONSOLIDAÇÃO PAGE
+══════════════════════════════════ */
+.cons-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 16px 28px 0; }
+.table-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0; }
+.search-input { border: 1px solid var(--gray200); border-radius: 8px; padding: 7px 12px; font-size: 12px; width: 280px; background: var(--white); }
+.search-input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+.table-count { font-size: 12px; color: var(--gray400); }
+
+.data-table-wrap { flex: 1; background: var(--white); border-radius: var(--radius) var(--radius) 0 0; box-shadow: var(--shadow); overflow: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th { background: var(--gray100); font-size: 10px; font-weight: 700; color: var(--gray600); text-transform: uppercase; letter-spacing: .4px; padding: 9px 12px; text-align: right; position: sticky; top: 0; z-index: 1; cursor: pointer; white-space: nowrap; user-select: none; }
+.data-table th:first-child, .data-table th:nth-child(2) { text-align: left; }
+.data-table th:hover { background: var(--gray200); }
+.data-table td { padding: 8px 12px; border-top: 1px solid var(--gray100); text-align: right; white-space: nowrap; }
+.data-table td:first-child, .data-table td:nth-child(2) { text-align: left; }
+.data-table tr:hover td { background: var(--gray50); }
+.data-table tr.highlight td { background: #FFFBEB; }
+.data-table tfoot td { background: var(--gray100); font-weight: 700; position: sticky; bottom: 0; font-size: 12px; }
+.sort-arrow { font-size: 9px; margin-left: 2px; }
+
+/* ══════════════════════════════════
+   EXPORT PAGE
+══════════════════════════════════ */
+.export-body { flex: 1; display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; }
+.export-left { padding: 28px 24px 28px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.export-right { background: var(--white); border-left: 1px solid var(--gray200); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; gap: 20px; }
+.export-right .export-icon { font-size: 64px; }
+.export-right h3 { font-size: 20px; font-weight: 800; }
+.export-right p { font-size: 13px; color: var(--gray600); text-align: center; line-height: 1.6; max-width: 300px; }
+.export-filename { background: var(--gray100); border-radius: 6px; padding: 8px 14px; font-size: 11px; font-family: monospace; color: var(--gray600); text-align: center; word-break: break-all; }
+.btn-dl { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 36px; border-radius: 10px; font-size: 15px; font-weight: 700; border: none; cursor: pointer; background: var(--green); color: #fff; transition: all .15s; }
+.btn-dl:hover { background: #059669; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16,185,129,.3); }
+
+/* Summary cards in export left */
+.exp-summary-card { background: var(--white); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+.exp-summary-card h4 { font-size: 11px; font-weight: 700; color: var(--gray400); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+.exp-row { display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0; border-bottom: 1px solid var(--gray100); }
+.exp-row:last-child { border-bottom: none; font-weight: 700; font-size: 13px; }
+.exp-row span:last-child { font-variant-numeric: tabular-nums; }
+.exp-row.positive span:last-child { color: var(--blue); }
+.exp-row.negative span:last-child { color: var(--red); }
+.exp-row.total span:last-child { color: var(--red); }
+.tag-pill { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+.tag-cofins { background: rgba(37,99,235,.1); color: var(--blue); }
+.tag-pis    { background: rgba(245,158,11,.1); color: var(--amber); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--gray200); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ SIDEBAR ═══════════ -->
+<nav id="sidebar">
+  <div class="sb-brand">
+    <div class="logo">MSB Medical</div>
+    <h1>Apuração<br>PIS / COFINS</h1>
+    <span class="badge">Regime Cumulativo</span>
+  </div>
+  <div class="sb-nav">
+    <div class="nav-item active" data-page="upload" onclick="navigate('upload')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Upload de Arquivos
+    </div>
+    <div class="nav-item disabled" data-page="dashboard" onclick="navigate('dashboard')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </div>
+    <div class="nav-item disabled" data-page="consolidacao" onclick="navigate('consolidacao')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Consolidação NF
+    </div>
+    <div class="nav-item disabled" data-page="exportar" onclick="navigate('exportar')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exportar Excel
+    </div>
+  </div>
+  <div class="sb-footer">v1.0 &nbsp;·&nbsp; Lei 9.718/98 &nbsp;·&nbsp; CNPJ 06.167.295/0001-71</div>
+</nav>
+
+<!-- ═══════════ MAIN ═══════════ -->
+<main id="main">
+
+<!-- ─────────────── UPLOAD ─────────────── -->
+<div id="page-upload" class="page active">
+  <div class="page-header">
+    <h2>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Upload de Arquivos
+    </h2>
+    <p>Selecione os 8 arquivos da competência</p>
+  </div>
+
+  <div class="upload-body">
+    <!-- Slots -->
+    <div class="upload-left">
+      <div class="upload-grid" id="upload-grid"></div>
+
+      <div style="background:var(--white);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);font-size:11px;color:var(--gray600);">
+        <strong style="color:var(--gray800);">Instruções de uso</strong><br>
+        Clique em cada célula para selecionar o arquivo correspondente. Todos os 8 arquivos são obrigatórios.
+        Os campos de <em>Competência</em> e <em>Estornos</em> ficam no painel à direita.
+        Após selecionar todos, clique em <strong>Processar Apuração</strong>.
+      </div>
+    </div>
+
+    <!-- Config panel -->
+    <div class="upload-right">
+      <h3>Configuração</h3>
+
+      <div class="form-group">
+        <label>Competência (MM/AAAA) *</label>
+        <input type="text" id="input-competencia" placeholder="05/2026" maxlength="7" oninput="formatCompetencia(this)" />
+      </div>
+
+      <div class="form-group">
+        <label>Estornos <span style="font-weight:400;color:var(--gray400)">(NFs a excluir, uma por linha)</span></label>
+        <textarea id="input-estornos" rows="4" placeholder="000019518&#10;000019520"></textarea>
+      </div>
+
+      <div>
+        <div class="section-label" style="margin-bottom:8px;">Status dos arquivos</div>
+        <div class="upload-status-box" id="status-box"></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:auto;">
+        <div class="progress-bar" id="progress-bar"><div class="progress-fill"></div></div>
+        <div class="error-msg" id="error-msg"></div>
+        <button class="btn btn-primary" id="btn-processar" onclick="processar()" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Processar Apuração
+        </button>
+        <div id="upload-status" style="font-size:11px;color:var(--gray400);text-align:center;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────── DASHBOARD ─────────────── -->
+<div id="page-dashboard" class="page">
+  <div class="page-header">
+    <h2>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+      <span class="comp-badge" id="dash-comp"></span>
+    </h2>
+    <p id="dash-subtitle">Resumo da apuração</p>
+  </div>
+
+  <div class="dash-body">
+    <!-- Left -->
+    <div class="dash-left">
+      <div class="cards-grid">
+        <div class="card accent-base">
+          <div class="card-label">Base de Cálculo</div>
+          <div class="card-value" id="c-base">—</div>
+          <div class="card-sub" id="c-base-sub"></div>
+        </div>
+        <div class="card accent-red">
+          <div class="card-label">Total a Recolher</div>
+          <div class="card-value" id="c-total">—</div>
+          <div class="card-sub">COFINS + PIS</div>
+        </div>
+        <div class="card accent-blue">
+          <div class="card-label">COFINS a Recolher <span class="tag-pill tag-cofins">3%</span></div>
+          <div class="card-value" id="c-cofins">—</div>
+          <div class="card-sub" id="c-cofins-sub"></div>
+        </div>
+        <div class="card accent-amber">
+          <div class="card-label">PIS a Recolher <span class="tag-pill tag-pis">0,65%</span></div>
+          <div class="card-value" id="c-pis">—</div>
+          <div class="card-sub" id="c-pis-sub"></div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3>Composição da Base</h3>
+          <div class="chart-wrap"><canvas id="chart-donut"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>Apurado · Retido · A Pagar</h3>
+          <div class="chart-wrap"><canvas id="chart-bar"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="dash-right">
+      <div class="right-tabs">
+        <div class="rtab active" onclick="switchTab('tab-base')" id="rtab-tab-base">Detalhamento</div>
+        <div class="rtab" onclick="switchTab('tab-alertas')" id="rtab-tab-alertas">Validação</div>
+      </div>
+
+      <div class="rtab-panel active" id="tab-base">
+        <div class="section-label">Composição da Base Líquida</div>
+        <table class="detail-table" id="detail-table"></table>
+
+        <div class="section-label" style="margin-top:16px;">Apuração dos Tributos</div>
+        <table class="detail-table" id="tributos-table"></table>
+      </div>
+
+      <div class="rtab-panel" id="tab-alertas">
+        <div id="alertas-container"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────── CONSOLIDAÇÃO ─────────────── -->
+<div id="page-consolidacao" class="page">
+  <div class="page-header">
+    <h2>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Consolidação NF
+      <span class="comp-badge" id="cons-comp"></span>
+    </h2>
+    <p>Recebimentos e retenções por nota fiscal</p>
+  </div>
+  <div class="cons-body">
+    <div class="table-toolbar">
+      <input type="text" class="search-input" id="search-nf" placeholder="🔍  Buscar NF ou cliente..." oninput="filterTable()" />
+      <span class="table-count" id="table-count"></span>
+    </div>
+    <div class="data-table-wrap">
+      <table class="data-table" id="cons-table">
+        <thead>
+          <tr>
+            <th onclick="sortTable('nf')">NF <span class="sort-arrow" id="sort-nf"></span></th>
+            <th onclick="sortTable('cliente')">Cliente <span class="sort-arrow" id="sort-cliente"></span></th>
+            <th onclick="sortTable('recebido')">Recebido <span class="sort-arrow" id="sort-recebido"></span></th>
+            <th onclick="sortTable('cofins_retido')">COFINS Ret. <span class="sort-arrow" id="sort-cofins_retido"></span></th>
+            <th onclick="sortTable('pis_retido')">PIS Ret. <span class="sort-arrow" id="sort-pis_retido"></span></th>
+            <th onclick="sortTable('csll_retido')">CSLL Ret. <span class="sort-arrow" id="sort-csll_retido"></span></th>
+            <th onclick="sortTable('irrf')">IRRF <span class="sort-arrow" id="sort-irrf"></span></th>
+            <th onclick="sortTable('juros')">Juros <span class="sort-arrow" id="sort-juros"></span></th>
+            <th onclick="sortTable('base_liquida')">Base Líquida <span class="sort-arrow" id="sort-base_liquida"></span></th>
+          </tr>
+        </thead>
+        <tbody id="cons-tbody"></tbody>
+        <tfoot id="cons-tfoot"></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────── EXPORTAR ─────────────── -->
+<div id="page-exportar" class="page">
+  <div class="page-header">
+    <h2>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exportar Excel
+    </h2>
+    <p>Planilha de apuração no formato padrão da equipe fiscal</p>
+  </div>
+  <div class="export-body">
+    <div class="export-left">
+
+      <div class="exp-summary-card">
+        <h4>Resumo — COFINS</h4>
+        <div id="exp-cofins-rows"></div>
+      </div>
+
+      <div class="exp-summary-card">
+        <h4>Resumo — PIS</h4>
+        <div id="exp-pis-rows"></div>
+      </div>
+
+      <div class="exp-summary-card">
+        <h4>Base de Cálculo</h4>
+        <div id="exp-base-rows"></div>
+      </div>
+
+      <div class="exp-summary-card">
+        <h4>Retenções Complementares</h4>
+        <div id="exp-ret-rows"></div>
+      </div>
+    </div>
+
+    <div class="export-right">
+      <div class="export-icon">📊</div>
+      <h3>Planilha Pronta</h3>
+      <p>Contém as abas <strong>COFINS</strong>, <strong>PIS</strong>, <strong>Consolidação NF</strong> e <strong>Validação</strong> no layout padrão da equipe fiscal.</p>
+      <div class="export-filename" id="export-filename">—</div>
+      <button class="btn-dl" onclick="exportar()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar Excel
+      </button>
+    </div>
+  </div>
+</div>
+
+</main>
+<script>
+// ═══ Estado ═══
+const appState = { resultado: null, sessionId: null, sortKey: 'nf', sortAsc: true, charts: {}, alertNFs: new Set(), consolidacaoData: [] };
+
+const FILE_SLOTS = [
+  { key: 'template',   label: 'Template',        icon: '📋' },
+  { key: 'recebidas',  label: 'Recebidas',        icon: '💰' },
+  { key: 'cofins_ret', label: 'COFINS Retido',    icon: '📄' },
+  { key: 'pis_ret',    label: 'PIS Retido',       icon: '📄' },
+  { key: 'csll_ret',   label: 'CSLL Retida',      icon: '📄' },
+  { key: 'irrf',       label: 'IRRF',             icon: '📄' },
+  { key: 'juros',      label: 'Juros Recebidos',  icon: '📈' },
+  { key: 'vendas',     label: 'Vendas',           icon: '🏷️' },
+];
+
+const uploadedFiles = {};
+
+// ═══ Init ═══
+document.addEventListener('DOMContentLoaded', () => { renderUploadGrid(); updateStatusBox(); });
+
+function renderUploadGrid() {
+  document.getElementById('upload-grid').innerHTML = FILE_SLOTS.map(s => `
+    <div class="file-slot" id="slot-${s.key}" onclick="document.getElementById('file-${s.key}').click()">
+      <input type="file" id="file-${s.key}" accept=".xlsx,.xls" onchange="onFileSelected('${s.key}',this)" onclick="event.stopPropagation()">
+      <div class="slot-icon">${s.icon}</div>
+      <div class="slot-label">${s.label} *</div>
+      <div class="slot-name" id="slot-name-${s.key}">Selecionar</div>
+    </div>`).join('');
+}
+
+function updateStatusBox() {
+  document.getElementById('status-box').innerHTML = FILE_SLOTS.map(s => {
+    const ok = !!uploadedFiles[s.key];
+    return `<div class="status-item">
+      <span class="si-label">${s.label}</span>
+      <span class="${ok ? 'si-ok' : 'si-pend'}">${ok ? '✓' : '—'}</span>
+    </div>`;
+  }).join('');
+}
+
+function onFileSelected(key, input) {
+  const file = input.files[0];
+  if (!file) return;
+  uploadedFiles[key] = file;
+  document.getElementById(`slot-${key}`).classList.add('uploaded');
+  document.getElementById(`slot-name-${key}`).textContent = file.name;
+  updateStatusBox();
+  checkReady();
+}
+
+function checkReady() {
+  const allOk = FILE_SLOTS.every(s => uploadedFiles[s.key]);
+  const comp = document.getElementById('input-competencia').value;
+  const compOk = /^\d{2}\/\d{4}$/.test(comp);
+  document.getElementById('btn-processar').disabled = !(allOk && compOk);
+  const miss = FILE_SLOTS.filter(s => !uploadedFiles[s.key]).length;
+  document.getElementById('upload-status').textContent =
+    miss > 0 ? `${miss} arquivo(s) pendente(s)` : compOk ? '✓ Pronto para processar' : 'Informe a competência';
+}
+
+function formatCompetencia(input) {
+  let v = input.value.replace(/\D/g, '');
+  if (v.length > 2) v = v.slice(0,2) + '/' + v.slice(2,6);
+  input.value = v;
+  checkReady();
+}
+
+// ═══ Processar ═══
+async function processar() {
+  document.getElementById('btn-processar').disabled = true;
+  document.getElementById('progress-bar').style.display = 'block';
+  document.getElementById('error-msg').style.display = 'none';
+  document.getElementById('upload-status').textContent = 'Processando…';
+
+  const comp = document.getElementById('input-competencia').value;
+  const estRaw = document.getElementById('input-estornos').value;
+  const estornos = estRaw.split('\n').map(s => s.trim().replace(/\D/g,'')).filter(s => s).map(s => s.padStart(9,'0'));
+
+  const fd = new FormData();
+  fd.append('competencia', comp);
+  fd.append('estornos_json', JSON.stringify(estornos));
+  FILE_SLOTS.forEach(s => { if (uploadedFiles[s.key]) fd.append(s.key, uploadedFiles[s.key]); });
+
+  try {
+    const res = await fetch('/processar', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.detail || data.error || 'Erro no processamento');
+
+    appState.resultado = data;
+    appState.sessionId = data.session_id;
+    ['dashboard','consolidacao','exportar'].forEach(p => document.querySelector(`[data-page="${p}"]`).classList.remove('disabled'));
+
+    renderDashboard(data);
+    renderConsolidacao(data.consolidacao, data.alertas);
+    renderExportar(data);
+
+    document.getElementById('upload-status').textContent = '✓ Concluído com sucesso';
+    navigate('dashboard');
+  } catch (e) {
+    const em = document.getElementById('error-msg');
+    em.textContent = '⚠ ' + e.message;
+    em.style.display = 'block';
+    document.getElementById('upload-status').textContent = 'Falha no processamento';
+    document.getElementById('btn-processar').disabled = false;
+  } finally {
+    document.getElementById('progress-bar').style.display = 'none';
+  }
+}
+
+// ═══ Dashboard ═══
+function renderDashboard(d) {
+  document.getElementById('dash-comp').textContent = d.competencia;
+  document.getElementById('dash-subtitle').textContent = `${d.consolidacao.length} NFs processadas ${d.estornos_aplicados.length ? '· ' + d.estornos_aplicados.length + ' estorno(s)' : ''}`;
+
+  const t = d.totais;
+  document.getElementById('c-base').textContent  = brl(t.base_liquida);
+  document.getElementById('c-total').textContent = brl(d.cofins.valor_a_pagar + d.pis.valor_a_pagar);
+  document.getElementById('c-cofins').textContent = brl(d.cofins.valor_a_pagar);
+  document.getElementById('c-pis').textContent    = brl(d.pis.valor_a_pagar);
+  document.getElementById('c-base-sub').textContent  = `Recebido: ${brl(t.total_recebido)}`;
+  document.getElementById('c-cofins-sub').textContent = `Apurado: ${brl(d.cofins.valor_apurado)} · Ret: ${brl(d.cofins.retencao_fonte)}`;
+  document.getElementById('c-pis-sub').textContent    = `Apurado: ${brl(d.pis.valor_apurado)} · Ret: ${brl(d.pis.retencao_fonte)}`;
+
+  renderDetailTable(d);
+  renderCharts(d);
+  renderAlertas(d.alertas);
+}
+
+function renderDetailTable(d) {
+  const t = d.totais;
+  const base = t.base_liquida;
+
+  const baseRows = [
+    { label: '(+) Recebido de Clientes', v: t.total_recebido, cls: 'dt-pos' },
+    { label: '(+) COFINS Retido na Fonte', v: t.cofins_retido, cls: 'dt-pos' },
+    { label: '(+) PIS Retido na Fonte', v: t.pis_retido, cls: 'dt-pos' },
+    { label: '(+) CSLL Retida', v: t.csll_retida, cls: 'dt-pos' },
+    { label: '(+) IRRF Retido', v: t.irrf_retido, cls: 'dt-pos' },
+    { label: '(−) Juros / Multas', v: t.juros, cls: 'dt-neg', neg: true },
+    { label: 'BASE LÍQUIDA', v: base, cls: 'dt-total' },
+  ];
+  document.getElementById('detail-table').innerHTML = baseRows.map(r =>
+    `<tr><td class="dt-label">${r.label}</td><td class="${r.cls}">${r.neg ? '- ':''}${brl(r.v)}</td></tr>`
+  ).join('');
+
+  const tribRows = [
+    { label: 'COFINS Apurado (3%)',     v: d.cofins.valor_apurado  },
+    { label: 'COFINS Retido na Fonte',  v: d.cofins.retencao_fonte },
+    { label: 'COFINS A RECOLHER',       v: d.cofins.valor_a_pagar, cls: 'dt-pos' },
+    { label: 'PIS Apurado (0,65%)',     v: d.pis.valor_apurado    },
+    { label: 'PIS Retido na Fonte',     v: d.pis.retencao_fonte   },
+    { label: 'PIS A RECOLHER',          v: d.pis.valor_a_pagar, cls: 'dt-pos' },
+    { label: 'TOTAL A RECOLHER',        v: d.cofins.valor_a_pagar + d.pis.valor_a_pagar, cls: 'dt-neg' },
+  ];
+  document.getElementById('tributos-table').innerHTML = tribRows.map(r =>
+    `<tr><td class="dt-label">${r.label}</td><td class="${r.cls||''}">${brl(r.v)}</td></tr>`
+  ).join('');
+}
+
+function renderCharts(d) {
+  const t = d.totais;
+  if (appState.charts.donut) appState.charts.donut.destroy();
+  appState.charts.donut = new Chart(document.getElementById('chart-donut'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Recebido', 'COFINS', 'PIS', 'CSLL', 'IRRF', 'Juros(−)'],
+      datasets: [{ data: [t.total_recebido, t.cofins_retido, t.pis_retido, t.csll_retida, t.irrf_retido, t.juros],
+        backgroundColor: ['#2563EB','#7C3AED','#5B21B6','#4C1D95','#6D28D9','#EF4444'], borderWidth: 2, borderColor: '#fff' }],
+    },
+    options: { responsive:true, maintainAspectRatio:false, cutout:'65%',
+      plugins: { legend: { position:'bottom', labels:{ font:{size:10}, padding:6, boxWidth:10 } },
+        tooltip: { callbacks: { label: ctx => ` ${brl(ctx.parsed)}` } } } },
+  });
+
+  if (appState.charts.bar) appState.charts.bar.destroy();
+  appState.charts.bar = new Chart(document.getElementById('chart-bar'), {
+    type: 'bar',
+    data: { labels: ['COFINS', 'PIS'],
+      datasets: [
+        { label: 'Apurado',    data: [d.cofins.valor_apurado,  d.pis.valor_apurado],  backgroundColor: '#BFDBFE' },
+        { label: 'Retido',     data: [d.cofins.retencao_fonte, d.pis.retencao_fonte], backgroundColor: '#6EE7B7' },
+        { label: 'A Recolher', data: [d.cofins.valor_a_pagar,  d.pis.valor_a_pagar],  backgroundColor: '#2563EB' },
+      ] },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{ labels:{ font:{size:10}, boxWidth:10, padding:8 } },
+        tooltip:{ callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${brl(ctx.parsed.y)}` } } },
+      scales: { y:{ ticks:{ callback: v => 'R$'+(v/1000).toFixed(0)+'k', font:{size:10} }, grid:{color:'#F1F5F9'} },
+        x:{ ticks:{ font:{size:11,weight:'600'} } } } },
+  });
+}
+
+function renderAlertas(alertas) {
+  const c = document.getElementById('alertas-container');
+  if (!alertas || !alertas.length) {
+    c.innerHTML = `<div class="alert-box ok"><div class="alert-icon">✅</div><div><div class="alert-title">Sem inconsistências</div><div class="alert-desc">Todos os registros estão consistentes.</div></div></div>`;
+    return;
+  }
+  c.innerHTML = alertas.map(a => {
+    appState.alertNFs = new Set([...appState.alertNFs, ...a.nfs]);
+    return `<div class="alert-box warn">
+      <div class="alert-icon">⚠️</div>
+      <div>
+        <div class="alert-title">${a.tipo}</div>
+        <div class="alert-desc">${a.quantidade} NF(s) · ${brl(a.valor_total)}<br>${a.descricao}</div>
+        <div class="alert-nfs">${a.nfs.slice(0,12).join(' · ')}${a.nfs.length>12?` …(+${a.nfs.length-12})`:''}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Atualiza badge da aba
+  const tabEl = document.getElementById('rtab-tab-alertas');
+  if (tabEl) tabEl.textContent = `Validação (${alertas.length})`;
+}
+
+function switchTab(id) {
+  document.querySelectorAll('.rtab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('rtab-' + id).classList.add('active');
+}
+
+// ═══ Consolidação ═══
+function renderConsolidacao(data, alertas) {
+  document.getElementById('cons-comp').textContent = appState.resultado.competencia;
+  appState.consolidacaoData = [...data];
+  appState.alertNFs = new Set((alertas||[]).flatMap(a => a.nfs));
+  renderTable(data);
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById('cons-tbody');
+  const tfoot = document.getElementById('cons-tfoot');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--gray400)">Nenhum registro.</td></tr>'; return; }
+
+  tbody.innerHTML = data.map(r => `
+    <tr class="${appState.alertNFs.has(r.nf)?'highlight':''}">
+      <td><strong>${r.nf}</strong></td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${r.cliente}</td>
+      <td>${brl(r.recebido)}</td>
+      <td>${r.cofins_retido ? brl(r.cofins_retido) : '—'}</td>
+      <td>${r.pis_retido    ? brl(r.pis_retido)    : '—'}</td>
+      <td>${r.csll_retido   ? brl(r.csll_retido)   : '—'}</td>
+      <td>${r.irrf          ? brl(r.irrf)          : '—'}</td>
+      <td>${r.juros         ? brl(r.juros)         : '—'}</td>
+      <td><strong>${brl(r.base_liquida)}</strong></td>
+    </tr>`).join('');
+
+  const sum = k => data.reduce((a,r) => a+(r[k]||0), 0);
+  tfoot.innerHTML = `<tr>
+    <td colspan="2"><strong>TOTAL — ${data.length} NFs</strong></td>
+    <td><strong>${brl(sum('recebido'))}</strong></td>
+    <td><strong>${brl(sum('cofins_retido'))}</strong></td>
+    <td><strong>${brl(sum('pis_retido'))}</strong></td>
+    <td><strong>${brl(sum('csll_retido'))}</strong></td>
+    <td><strong>${brl(sum('irrf'))}</strong></td>
+    <td><strong>${brl(sum('juros'))}</strong></td>
+    <td><strong>${brl(sum('base_liquida'))}</strong></td>
+  </tr>`;
+  document.getElementById('table-count').textContent = `${data.length} registros`;
+}
+
+function filterTable() {
+  const q = document.getElementById('search-nf').value.toLowerCase();
+  renderTable((appState.consolidacaoData||[]).filter(r => r.nf.includes(q) || r.cliente.toLowerCase().includes(q)));
+}
+
+function sortTable(key) {
+  if (appState.sortKey === key) appState.sortAsc = !appState.sortAsc;
+  else { appState.sortKey = key; appState.sortAsc = true; }
+  document.querySelectorAll('.sort-arrow').forEach(e => e.textContent = '');
+  document.getElementById(`sort-${key}`).textContent = appState.sortAsc ? '▲' : '▼';
+  appState.consolidacaoData = [...appState.consolidacaoData].sort((a,b) => {
+    const av = a[key]??'', bv = b[key]??'';
+    return appState.sortAsc ? (av>bv?1:-1) : (av<bv?1:-1);
+  });
+  filterTable();
+}
+
+// ═══ Exportar ═══
+function renderExportar(d) {
+  const comp = d.competencia.replace('/','.');
+  document.getElementById('export-filename').textContent = `Apuração PIS COFINS ${comp}.xlsx`;
+
+  const mkRows = rows => rows.map(r =>
+    `<div class="exp-row ${r.cls||''}"><span>${r.label}</span><span>${brl(r.v)}</span></div>`
+  ).join('');
+
+  document.getElementById('exp-cofins-rows').innerHTML = mkRows([
+    { label: 'Base de Cálculo', v: d.cofins.base_calculo||d.totais.base_liquida },
+    { label: 'Valor Apurado (3%)', v: d.cofins.valor_apurado },
+    { label: 'Retido na Fonte', v: d.cofins.retencao_fonte },
+    { label: 'A RECOLHER', v: d.cofins.valor_a_pagar, cls: 'total positive' },
+  ]);
+  document.getElementById('exp-pis-rows').innerHTML = mkRows([
+    { label: 'Base de Cálculo', v: d.pis.base_calculo||d.totais.base_liquida },
+    { label: 'Valor Apurado (0,65%)', v: d.pis.valor_apurado },
+    { label: 'Retido na Fonte', v: d.pis.retencao_fonte },
+    { label: 'A RECOLHER', v: d.pis.valor_a_pagar, cls: 'total positive' },
+  ]);
+  document.getElementById('exp-base-rows').innerHTML = mkRows([
+    { label: 'Recebido de Clientes', v: d.totais.total_recebido },
+    { label: '+ COFINS Retido', v: d.totais.cofins_retido },
+    { label: '+ PIS Retido', v: d.totais.pis_retido },
+    { label: '+ CSLL Retida', v: d.totais.csll_retida },
+    { label: '+ IRRF Retido', v: d.totais.irrf_retido },
+    { label: '− Juros/Multas', v: d.totais.juros, cls: 'negative' },
+    { label: 'BASE LÍQUIDA', v: d.totais.base_liquida, cls: 'total' },
+  ]);
+  document.getElementById('exp-ret-rows').innerHTML = mkRows([
+    { label: 'CSLL Retida (informativo)', v: d.totais.csll_retida },
+    { label: 'IRRF Retido (informativo)', v: d.totais.irrf_retido },
+  ]);
+}
+
+async function exportar() {
+  if (!appState.sessionId) return;
+  window.location.href = `/exportar/${appState.sessionId}`;
+}
+
+// ═══ Navegação ═══
+function navigate(page) {
+  const item = document.querySelector(`[data-page="${page}"]`);
+  if (item.classList.contains('disabled')) return;
+  document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(e => e.classList.remove('active'));
+  item.classList.add('active');
+  document.getElementById(`page-${page}`).classList.add('active');
+}
+
+// ═══ Formatação ═══
+function brl(v) {
+  return 'R$ ' + Number(v||0).toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+</script>
+</body>
+</html>

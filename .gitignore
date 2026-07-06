@@ -1,0 +1,35 @@
+# Output gerado
+output/
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# Variáveis de ambiente
+.env
+.env.local
+.env*.local
+
+# Planilhas de dados (não versionar dados fiscais)
+src/data/
+data/
+*.xlsx
+*.xls
+
+# Vercel
+.vercel/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
