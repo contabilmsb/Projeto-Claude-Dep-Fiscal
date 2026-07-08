@@ -272,7 +272,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 <div id="login-modal" class="hidden">
   <div class="login-box">
     <button class="login-close" onclick="closeLoginModal()">✕</button>
-    <div class="login-logo">MSB Medical</div>
+    <img src="/static/msb-logo.png" alt="MSB Medical" style="width:120px;margin-bottom:12px;display:block;">
     <div class="login-title">Acessar Portal</div>
     <div class="login-sub">Entre com suas credenciais para continuar</div>
     <div class="login-field">
@@ -292,8 +292,8 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 <!-- ═══════════ SIDEBAR ═══════════ -->
 <nav id="sidebar">
   <div class="sb-brand">
-    <div class="logo">MSB Medical</div>
-    <h1>Apuração<br>PIS / COFINS</h1>
+    <img src="/static/msb-logo.png" alt="MSB Medical System do Brasil" style="width:140px;display:block;margin-bottom:10px;filter:brightness(0) invert(1);">
+    <h1 style="font-size:13px;font-weight:700;color:rgba(255,255,255,.75);letter-spacing:.3px;">Apuração PIS / COFINS</h1>
     <span class="badge">Regime Cumulativo</span>
   </div>
   <div class="sb-nav">
@@ -393,7 +393,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 
   <!-- Empty state (sem resultado) -->
   <div class="dash-empty" id="dash-empty">
-    <div class="dash-empty-icon">📊</div>
+    <img src="/static/msb-logo.png" alt="MSB Medical System do Brasil" style="width:180px;margin-bottom:8px;opacity:.7;">
     <h3>Portal de Apuração PIS/COFINS</h3>
     <p>Faça login para acessar o upload de arquivos, processar a apuração e exportar a planilha fiscal.</p>
     <button class="btn-entrar-lg" onclick="openLoginModal()">

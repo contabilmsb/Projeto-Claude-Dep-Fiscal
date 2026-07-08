@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from src.readers import load_all
 from src.calculator import calcular
@@ -41,6 +42,12 @@ app.add_middleware(
 )
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+# Serve arquivos estáticos (logo, etc.) — funciona local e no Vercel
+try:
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+except Exception:
+    pass
 OUTPUT_DIR = Path(__file__).parent.parent / "output"
 # Cria apenas localmente; no Vercel o filesystem é read-only
 try:
