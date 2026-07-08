@@ -1096,12 +1096,17 @@ function navigate(page) {
 // ═══ Usuários ═══
 let _editingUser = null;
 
+async function _safeJson(res) {
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { return { detail: text }; }
+}
+
 async function carregarUsuarios() {
   const list = document.getElementById('users-list');
   list.innerHTML = '<div class="users-empty">Carregando…</div>';
   try {
     const res = await fetch('/usuarios', { headers: { 'X-Auth-Token': _getToken() } });
-    if (!res.ok) throw new Error((await res.json()).detail || 'Erro ao buscar usuários');
+    if (!res.ok) throw new Error((await _safeJson(res)).detail || 'Erro ao buscar usuários');
     const users = await res.json();
     document.getElementById('users-count').textContent = `${users.length} usuário(s)`;
     if (!users.length) {
@@ -1154,7 +1159,7 @@ async function criarUsuario() {
     const fd = new FormData();
     fd.append('username', username); fd.append('password', pass1); fd.append('full_name', fullname);
     const res = await fetch('/usuarios', { method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() } });
-    const data = await res.json();
+    const data = await _safeJson(res);
     if (!res.ok) throw new Error(data.detail || 'Erro ao criar usuário');
     // Limpa formulário
     ['new-fullname','new-username','new-password','new-password2'].forEach(id => document.getElementById(id).value = '');
@@ -1188,7 +1193,7 @@ async function salvarSenha() {
   try {
     const fd = new FormData(); fd.append('new_password', pass);
     const res = await fetch(`/usuarios/${_editingUser}`, { method: 'PATCH', body: fd, headers: { 'X-Auth-Token': _getToken() } });
-    const data = await res.json();
+    const data = await _safeJson(res);
     if (!res.ok) throw new Error(data.detail || 'Erro');
     showToast(`✓ Senha de @${_editingUser} atualizada`, 'ok');
     cancelarEdicao();
@@ -1200,7 +1205,7 @@ async function toggleAtivo(username, currentlyActive) {
   try {
     const fd = new FormData(); fd.append('active', newState);
     const res = await fetch(`/usuarios/${username}`, { method: 'PATCH', body: fd, headers: { 'X-Auth-Token': _getToken() } });
-    if (!res.ok) throw new Error((await res.json()).detail || 'Erro');
+    if (!res.ok) throw new Error((await _safeJson(res)).detail || 'Erro');
     // Atualiza badge e botão inline sem recarregar tudo
     document.getElementById(`badge-${username}`).className   = newState ? 'badge-active'   : 'badge-inactive';
     document.getElementById(`badge-${username}`).textContent = newState ? 'Ativo' : 'Inativo';
@@ -1215,7 +1220,7 @@ async function excluirUsuario(username) {
   if (!confirm(`Excluir permanentemente o usuário @${username}?\nEsta ação não pode ser desfeita.`)) return;
   try {
     const res = await fetch(`/usuarios/${username}`, { method: 'DELETE', headers: { 'X-Auth-Token': _getToken() } });
-    if (!res.ok) throw new Error((await res.json()).detail || 'Erro');
+    if (!res.ok) throw new Error((await _safeJson(res)).detail || 'Erro');
     document.getElementById(`ucard-${username}`)?.remove();
     showToast(`🗑 @${username} excluído`, 'warn', 4000);
     const count = document.querySelectorAll('.user-card').length;

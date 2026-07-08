@@ -40,6 +40,35 @@ RETURNS void LANGUAGE sql SECURITY DEFINER AS $$
   UPDATE users SET last_login = NOW() WHERE username = p_username;
 $$;
 
+-- 5. Função RPC para criar usuário (hash bcrypt via pgcrypto — sem expor senha ao backend)
+--    Retorna 'ok' se criado, 'duplicate' se username já existe.
+CREATE OR REPLACE FUNCTION create_user_rpc(
+  p_username  TEXT,
+  p_password  TEXT,
+  p_full_name TEXT DEFAULT NULL
+)
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM users WHERE username = p_username) THEN
+    RETURN 'duplicate';
+  END IF;
+  INSERT INTO users (username, password_hash, full_name, active)
+  VALUES (p_username, crypt(p_password, gen_salt('bf', 12)), p_full_name, TRUE);
+  RETURN 'ok';
+END;
+$$;
+
+-- 6. Função RPC para alterar senha (hash bcrypt via pgcrypto)
+CREATE OR REPLACE FUNCTION change_password_rpc(
+  p_username    TEXT,
+  p_new_password TEXT
+)
+RETURNS void LANGUAGE sql SECURITY DEFINER AS $$
+  UPDATE users
+  SET password_hash = crypt(p_new_password, gen_salt('bf', 12))
+  WHERE username = p_username;
+$$;
+
 -- ══════════════════════════════════════════════════════════════════
 --  INSERIR / GERENCIAR USUÁRIOS
 --  Troque 'usuario' e 'senha' pelos valores reais.
