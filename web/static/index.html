@@ -6,10 +6,12 @@
 <title>Apuração PIS/COFINS — MSB Medical</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-/* ── Login Screen ── */
-#login-screen { position: fixed; inset: 0; background: var(--navy); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-#login-screen.hidden { display: none; }
-.login-box { background: #fff; border-radius: 16px; padding: 40px; width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+/* ── Login Modal ── */
+#login-modal { position: fixed; inset: 0; background: rgba(15,23,42,.7); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
+#login-modal.hidden { display: none; }
+.login-box { background: #fff; border-radius: 16px; padding: 40px; width: 380px; box-shadow: 0 24px 64px rgba(0,0,0,.35); position: relative; }
+.login-close { position: absolute; top: 14px; right: 16px; background: none; border: none; font-size: 20px; color: #94A3B8; cursor: pointer; line-height: 1; }
+.login-close:hover { color: #475569; }
 .login-logo { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: #94A3B8; text-transform: uppercase; margin-bottom: 4px; }
 .login-title { font-size: 22px; font-weight: 800; color: #1E293B; margin-bottom: 4px; }
 .login-sub { font-size: 13px; color: #64748B; margin-bottom: 28px; }
@@ -22,6 +24,21 @@
 .login-btn:disabled { opacity: .5; cursor: not-allowed; }
 .login-error { font-size: 12px; color: #EF4444; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; padding: 8px 10px; margin-top: 12px; display: none; }
 .login-footer { font-size: 10px; color: #94A3B8; text-align: center; margin-top: 20px; }
+/* Botão entrar/usuario na sidebar */
+.sb-auth { margin: 10px 12px 0; }
+.btn-entrar { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 14px; background: rgba(37,99,235,.25); color: #93C5FD; border: 1px solid rgba(37,99,235,.4); border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; }
+.btn-entrar:hover { background: rgba(37,99,235,.4); }
+.sb-user { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: rgba(16,185,129,.15); border-radius: 8px; border: 1px solid rgba(16,185,129,.25); }
+.sb-user-name { font-size: 12px; font-weight: 700; color: #6EE7B7; }
+.sb-user-logout { font-size: 11px; color: rgba(255,255,255,.4); cursor: pointer; background: none; border: none; padding: 2px 6px; }
+.sb-user-logout:hover { color: #fff; }
+/* Dashboard empty state */
+.dash-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 40px; }
+.dash-empty-icon { font-size: 64px; opacity: .4; }
+.dash-empty h3 { font-size: 20px; font-weight: 700; color: var(--gray600); }
+.dash-empty p { font-size: 14px; color: var(--gray400); text-align: center; max-width: 360px; line-height: 1.6; }
+.btn-entrar-lg { display: inline-flex; align-items: center; gap: 10px; padding: 13px 28px; background: var(--blue); color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all .15s; }
+.btn-entrar-lg:hover { background: #1D4ED8; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,.3); }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -239,12 +256,13 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 </head>
 <body>
 
-<!-- ═══════════ LOGIN ═══════════ -->
-<div id="login-screen">
+<!-- ═══════════ LOGIN MODAL ═══════════ -->
+<div id="login-modal" class="hidden">
   <div class="login-box">
+    <button class="login-close" onclick="closeLoginModal()">✕</button>
     <div class="login-logo">MSB Medical</div>
-    <div class="login-title">Apuração PIS/COFINS</div>
-    <div class="login-sub">Acesso restrito — faça login para continuar</div>
+    <div class="login-title">Acessar Portal</div>
+    <div class="login-sub">Entre com suas credenciais para continuar</div>
     <div class="login-field">
       <label>Usuário</label>
       <input type="text" id="login-user" placeholder="seu usuário" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()" />
@@ -267,26 +285,28 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     <span class="badge">Regime Cumulativo</span>
   </div>
   <div class="sb-nav">
-    <div class="nav-item active" data-page="upload" onclick="navigate('upload')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      Upload de Arquivos
-    </div>
-    <div class="nav-item disabled" data-page="dashboard" onclick="navigate('dashboard')">
+    <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
       Dashboard
     </div>
-    <div class="nav-item disabled" data-page="consolidacao" onclick="navigate('consolidacao')">
+    <div class="nav-item" data-page="upload" data-protected="true" onclick="navigate('upload')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Upload de Arquivos
+    </div>
+    <div class="nav-item disabled" data-page="consolidacao" data-protected="true" onclick="navigate('consolidacao')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       Consolidação NF
     </div>
-    <div class="nav-item disabled" data-page="exportar" onclick="navigate('exportar')">
+    <div class="nav-item disabled" data-page="exportar" data-protected="true" onclick="navigate('exportar')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exportar Excel
     </div>
   </div>
-  <div class="sb-footer" style="display:flex;justify-content:space-between;align-items:center;">
+  <div class="sb-auth" id="sb-auth">
+    <!-- preenchido por updateAuthUI() -->
+  </div>
+  <div class="sb-footer">
     <span>v1.0 · Lei 9.718/98</span>
-    <span id="logout-btn" onclick="doLogout()" style="cursor:pointer;color:rgba(255,255,255,.4);font-size:11px;" title="Sair">⏻ Sair</span>
   </div>
 </nav>
 
@@ -294,7 +314,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 <main id="main">
 
 <!-- ─────────────── UPLOAD ─────────────── -->
-<div id="page-upload" class="page active">
+<div id="page-upload" class="page">
   <div class="page-header">
     <h2>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -349,7 +369,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 </div>
 
 <!-- ─────────────── DASHBOARD ─────────────── -->
-<div id="page-dashboard" class="page">
+<div id="page-dashboard" class="page active">
   <div class="page-header">
     <h2>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -359,7 +379,19 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     <p id="dash-subtitle">Resumo da apuração</p>
   </div>
 
-  <div class="dash-body">
+  <!-- Empty state (sem resultado) -->
+  <div class="dash-empty" id="dash-empty">
+    <div class="dash-empty-icon">📊</div>
+    <h3>Portal de Apuração PIS/COFINS</h3>
+    <p>Faça login para acessar o upload de arquivos, processar a apuração e exportar a planilha fiscal.</p>
+    <button class="btn-entrar-lg" onclick="openLoginModal()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+      Entrar
+    </button>
+    <p style="font-size:11px;color:var(--gray400);">MSB Medical System do Brasil · CNPJ 06.167.295/0001-71 · Regime Cumulativo · Lei 9.718/98</p>
+  </div>
+
+  <div class="dash-body" id="dash-content" style="display:none;">
     <!-- Left -->
     <div class="dash-left">
       <div class="cards-grid">
@@ -417,6 +449,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       </div>
     </div>
   </div>
+  </div><!-- /dash-content -->
 </div>
 
 <!-- ─────────────── CONSOLIDAÇÃO ─────────────── -->
@@ -506,12 +539,45 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 <script>
 // ═══ Auth ═══
 function _getToken() { return sessionStorage.getItem('auth_token') || ''; }
+function _isLoggedIn() { return !!_getToken(); }
 
-function _checkAuth() {
-  const token = _getToken();
-  if (!token) { document.getElementById('login-screen').classList.remove('hidden'); return false; }
-  document.getElementById('login-screen').classList.add('hidden');
-  return true;
+function openLoginModal() {
+  document.getElementById('login-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('login-user').focus(), 50);
+}
+
+function closeLoginModal() {
+  document.getElementById('login-modal').classList.add('hidden');
+  document.getElementById('login-error').style.display = 'none';
+}
+
+function updateAuthUI() {
+  const auth = _isLoggedIn();
+  const user = sessionStorage.getItem('auth_user') || '';
+  const sbAuth = document.getElementById('sb-auth');
+
+  if (auth) {
+    sbAuth.innerHTML = `
+      <div class="sb-user">
+        <span class="sb-user-name">👤 ${user}</span>
+        <button class="sb-user-logout" onclick="doLogout()" title="Sair">⏻ Sair</button>
+      </div>`;
+    // Habilita item de upload (não depende de resultado)
+    document.querySelector('[data-page="upload"]').classList.remove('disabled');
+  } else {
+    sbAuth.innerHTML = `
+      <button class="btn-entrar" onclick="openLoginModal()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        Entrar
+      </button>`;
+    // Bloqueia upload quando deslogado
+    document.querySelector('[data-page="upload"]').classList.add('disabled');
+  }
+
+  // Mostra/oculta empty state do dashboard
+  const hasResult = !!appState.resultado;
+  document.getElementById('dash-empty').style.display   = (!auth || !hasResult) ? 'flex' : 'none';
+  document.getElementById('dash-content').style.display = (auth && hasResult)   ? 'grid' : 'none';
 }
 
 async function doLogin() {
@@ -529,8 +595,11 @@ async function doLogin() {
     if (!res.ok) throw new Error(data.detail || 'Erro ao autenticar');
     sessionStorage.setItem('auth_token', data.token);
     sessionStorage.setItem('auth_user', data.username);
-    document.getElementById('login-screen').classList.add('hidden');
+    closeLoginModal();
     document.getElementById('login-pass').value = '';
+    updateAuthUI();
+    // Se estava tentando navegar para página protegida, vai para upload
+    navigate('upload');
   } catch(e) {
     err.textContent = e.message; err.style.display = 'block';
   } finally {
@@ -541,12 +610,10 @@ async function doLogin() {
 function doLogout() {
   sessionStorage.removeItem('auth_token');
   sessionStorage.removeItem('auth_user');
-  // Reset estado
   appState.resultado = null; appState.sessionId = null;
-  ['dashboard','consolidacao','exportar'].forEach(p => document.querySelector(`[data-page="${p}"]`).classList.add('disabled'));
-  navigate('upload');
-  document.getElementById('login-screen').classList.remove('hidden');
-  document.getElementById('login-user').value = '';
+  ['consolidacao','exportar'].forEach(p => document.querySelector(`[data-page="${p}"]`).classList.add('disabled'));
+  updateAuthUI();
+  navigate('dashboard');
 }
 
 // ═══ Estado ═══
@@ -566,7 +633,7 @@ const FILE_SLOTS = [
 const uploadedFiles = {};
 
 // ═══ Init ═══
-document.addEventListener('DOMContentLoaded', () => { _checkAuth(); renderUploadGrid(); updateStatusBox(); });
+document.addEventListener('DOMContentLoaded', () => { updateAuthUI(); renderUploadGrid(); updateStatusBox(); });
 
 function renderUploadGrid() {
   document.getElementById('upload-grid').innerHTML = FILE_SLOTS.map(s => `
@@ -643,6 +710,7 @@ async function processar() {
     renderDashboard(data);
     renderConsolidacao(data.consolidacao, data.alertas);
     renderExportar(data);
+    updateAuthUI();
 
     document.getElementById('upload-status').textContent = '✓ Concluído com sucesso';
     navigate('dashboard');
@@ -878,6 +946,11 @@ async function exportar() {
 function navigate(page) {
   const item = document.querySelector(`[data-page="${page}"]`);
   if (item.classList.contains('disabled')) return;
+  // Página protegida sem login → abre modal e aborta navegação
+  if (item.dataset.protected && !_isLoggedIn()) {
+    openLoginModal();
+    return;
+  }
   document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
   document.querySelectorAll('.page').forEach(e => e.classList.remove('active'));
   item.classList.add('active');
