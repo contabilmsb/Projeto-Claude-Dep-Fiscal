@@ -440,14 +440,25 @@ async def criar_usuario(
     if len(password) < 6:
         raise HTTPException(status_code=422, detail="Senha deve ter pelo menos 6 caracteres.")
     sb = _get_supabase()
-    # Hash bcrypt feito pelo pgcrypto via RPC (sem dependência de bcrypt no Python)
-    result = sb.rpc("create_user_rpc", {
-        "p_username":  username,
-        "p_password":  password,
-        "p_full_name": full_name or None,
-    }).execute()
-    if result.data == "duplicate":
+    # Verifica duplicidade diretamente (evita depender do RPC para isso)
+    existing = sb.table("users").select("id").eq("username", username).execute()
+    if existing.data:
         raise HTTPException(status_code=409, detail=f"Usuário '{username}' já existe.")
+    # Hash bcrypt feito pelo pgcrypto via RPC
+    try:
+        sb.rpc("create_user_rpc", {
+            "p_username":  username,
+            "p_password":  password,
+            "p_full_name": full_name or None,
+        }).execute()
+    except Exception as e:
+        err_str = str(e)
+        if "does not exist" in err_str or "Could not find" in err_str:
+            raise HTTPException(
+                status_code=503,
+                detail="Função SQL não encontrada. Execute o arquivo supabase_users.sql no SQL Editor do Supabase (seção 5 — create_user_rpc)."
+            )
+        raise HTTPException(status_code=500, detail=err_str)
     return {"ok": True, "username": username}
 
 
@@ -470,10 +481,16 @@ async def atualizar_usuario(
         if len(new_password) < 6:
             raise HTTPException(status_code=422, detail="Senha deve ter pelo menos 6 caracteres.")
         # Hash via RPC do Supabase
-        sb.rpc("change_password_rpc", {
-            "p_username":     username,
-            "p_new_password": new_password,
-        }).execute()
+        try:
+            sb.rpc("change_password_rpc", {
+                "p_username":     username,
+                "p_new_password": new_password,
+            }).execute()
+        except Exception as e:
+            err_str = str(e)
+            if "does not exist" in err_str or "Could not find" in err_str:
+                raise HTTPException(status_code=503, detail="Função change_password_rpc não encontrada. Execute o supabase_users.sql no SQL Editor do Supabase.")
+            raise HTTPException(status_code=500, detail=err_str)
     if patch:
         sb.table("users").update(patch).eq("username", username).execute()
     return {"ok": True}
