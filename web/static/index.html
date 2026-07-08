@@ -1247,6 +1247,9 @@ function _preencherSelects() {
       else if (current) el.value = current;
     }
   });
+  // Mostra o seletor assim que os períodos estão disponíveis
+  const periodRow = document.getElementById('dash-period-row');
+  if (periodRow) periodRow.style.display = _sessoes.length ? 'flex' : 'none';
   renderDashboardHistorico();
 }
 
