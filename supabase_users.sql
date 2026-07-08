@@ -69,6 +69,29 @@ RETURNS void LANGUAGE sql SECURITY DEFINER AS $$
   WHERE username = p_username;
 $$;
 
+-- 7. Função RPC para listar usuários (SECURITY DEFINER contorna restrição da chave anon)
+CREATE OR REPLACE FUNCTION listar_usuarios_rpc()
+RETURNS TABLE(
+  id UUID, username TEXT, full_name TEXT,
+  active BOOLEAN, created_at TIMESTAMPTZ, last_login TIMESTAMPTZ
+)
+LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT id, username, full_name, active, created_at, last_login
+  FROM users ORDER BY created_at ASC;
+$$;
+
+-- 8. Função RPC para ativar/desativar usuário
+CREATE OR REPLACE FUNCTION toggle_usuario_rpc(p_username TEXT, p_active BOOLEAN)
+RETURNS void LANGUAGE sql SECURITY DEFINER AS $$
+  UPDATE users SET active = p_active WHERE username = p_username;
+$$;
+
+-- 9. Função RPC para excluir usuário
+CREATE OR REPLACE FUNCTION excluir_usuario_rpc(p_username TEXT)
+RETURNS void LANGUAGE sql SECURITY DEFINER AS $$
+  DELETE FROM users WHERE username = p_username;
+$$;
+
 -- ══════════════════════════════════════════════════════════════════
 --  INSERIR / GERENCIAR USUÁRIOS
 --  Troque 'usuario' e 'senha' pelos valores reais.

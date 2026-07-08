@@ -482,9 +482,17 @@ async def listar_usuarios():
     if not _use_supabase():
         raise HTTPException(status_code=503, detail="Gestão de usuários requer Supabase.")
     sb = _get_supabase()
-    rows = sb.table("users").select("id,username,full_name,active,created_at,last_login") \
-        .order("created_at", desc=False).execute()
-    return rows.data or []
+    try:
+        # Usa RPC SECURITY DEFINER para evitar restrições de permissão da chave anon
+        result = sb.rpc("listar_usuarios_rpc", {}).execute()
+        return result.data or []
+    except Exception as e:
+        if "does not exist" in str(e) or "Could not find" in str(e):
+            raise HTTPException(
+                status_code=503,
+                detail="Função listar_usuarios_rpc não encontrada. Execute o supabase_users.sql no SQL Editor do Supabase (seção 7)."
+            )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/usuarios", dependencies=[Depends(require_auth)])
@@ -498,10 +506,15 @@ async def criar_usuario(
     if len(password) < 6:
         raise HTTPException(status_code=422, detail="Senha deve ter pelo menos 6 caracteres.")
     sb = _get_supabase()
-    # Verifica duplicidade diretamente (evita depender do RPC para isso)
-    existing = sb.table("users").select("id").eq("username", username).execute()
-    if existing.data:
-        raise HTTPException(status_code=409, detail=f"Usuário '{username}' já existe.")
+    # Verifica duplicidade via RPC (SECURITY DEFINER)
+    try:
+        existing = sb.rpc("listar_usuarios_rpc", {}).execute()
+        if any(u["username"] == username for u in (existing.data or [])):
+            raise HTTPException(status_code=409, detail=f"Usuário '{username}' já existe.")
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # Se RPC não existe ainda, deixa create_user_rpc detectar duplicidade
     # Hash bcrypt feito pelo pgcrypto via RPC
     try:
         sb.rpc("create_user_rpc", {
@@ -550,7 +563,13 @@ async def atualizar_usuario(
                 raise HTTPException(status_code=503, detail="Função change_password_rpc não encontrada. Execute o supabase_users.sql no SQL Editor do Supabase.")
             raise HTTPException(status_code=500, detail=err_str)
     if patch:
-        sb.table("users").update(patch).eq("username", username).execute()
+        if "active" in patch:
+            try:
+                sb.rpc("toggle_usuario_rpc", {"p_username": username, "p_active": patch["active"]}).execute()
+            except Exception:
+                sb.table("users").update({"active": patch["active"]}).eq("username", username).execute()
+        if "full_name" in patch:
+            sb.table("users").update({"full_name": patch["full_name"]}).eq("username", username).execute()
     return {"ok": True}
 
 
@@ -569,7 +588,10 @@ async def excluir_usuario(username: str, request: Request):
     except Exception:
         pass
     sb = _get_supabase()
-    sb.table("users").delete().eq("username", username).execute()
+    try:
+        sb.rpc("excluir_usuario_rpc", {"p_username": username}).execute()
+    except Exception:
+        sb.table("users").delete().eq("username", username).execute()
     return {"ok": True}
 
 
