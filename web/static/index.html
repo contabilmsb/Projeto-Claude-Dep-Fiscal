@@ -78,6 +78,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 .nav-item.active { background: rgba(37,99,235,.22); color: #fff; border-left-color: var(--blue-lt); }
 .nav-item.active svg { opacity: 1; }
 .nav-item.disabled { opacity: .3; cursor: not-allowed; }
+.nav-item.hidden-auth { display: none; }
 .sb-footer { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.08); font-size: 10px; color: rgba(255,255,255,.25); }
 
 /* ── Shell ── */
@@ -556,22 +557,23 @@ function updateAuthUI() {
   const user = sessionStorage.getItem('auth_user') || '';
   const sbAuth = document.getElementById('sb-auth');
 
+  // Mostra/oculta itens protegidos da sidebar
+  document.querySelectorAll('[data-protected]').forEach(el => {
+    el.classList.toggle('hidden-auth', !auth);
+  });
+
   if (auth) {
     sbAuth.innerHTML = `
       <div class="sb-user">
         <span class="sb-user-name">👤 ${user}</span>
         <button class="sb-user-logout" onclick="doLogout()" title="Sair">⏻ Sair</button>
       </div>`;
-    // Habilita item de upload (não depende de resultado)
-    document.querySelector('[data-page="upload"]').classList.remove('disabled');
   } else {
     sbAuth.innerHTML = `
       <button class="btn-entrar" onclick="openLoginModal()">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
         Entrar
       </button>`;
-    // Bloqueia upload quando deslogado
-    document.querySelector('[data-page="upload"]').classList.add('disabled');
   }
 
   // Mostra/oculta empty state do dashboard
