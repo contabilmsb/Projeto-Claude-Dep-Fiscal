@@ -150,8 +150,27 @@ def _session_get(session_id: str) -> dict | None:
 
 @app.post("/auth/login")
 async def login(username: str = Form(...), password: str = Form(...)):
+    # Valida via Supabase (tabela users com bcrypt)
+    if _use_supabase():
+        sb = _get_supabase()
+        try:
+            result = sb.rpc("verify_user", {"p_username": username, "p_password": password}).execute()
+            if not result.data:
+                raise HTTPException(status_code=401, detail="Usuário ou senha inválidos.")
+            user = result.data[0]
+            # Atualiza last_login (ignora erro se função não existir)
+            try:
+                sb.rpc("touch_last_login", {"p_username": username}).execute()
+            except Exception:
+                pass
+            return {"token": _make_token(username), "username": user.get("full_name") or username}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Erro ao autenticar: {e}")
+    # Fallback local via env vars (desenvolvimento)
     if not APP_PASSWORD:
-        raise HTTPException(status_code=503, detail="APP_PASSWORD não configurada no servidor.")
+        raise HTTPException(status_code=503, detail="APP_PASSWORD não configurada.")
     if username == APP_USERNAME and password == APP_PASSWORD:
         return {"token": _make_token(username), "username": username}
     raise HTTPException(status_code=401, detail="Usuário ou senha inválidos.")
