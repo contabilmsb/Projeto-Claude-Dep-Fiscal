@@ -11,6 +11,10 @@ import sys
 import os
 import uuid
 import json
+import hmac
+import time
+import base64
+import hashlib
 import shutil
 import tempfile
 from pathlib import Path
@@ -18,7 +22,7 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -46,6 +50,38 @@ except OSError:
 
 COFINS_RATE = 0.03
 PIS_RATE    = 0.0065
+
+# ── Autenticação ──────────────────────────────────────────────────────────────
+APP_USERNAME = os.getenv("APP_USERNAME", "admin")
+APP_PASSWORD = os.getenv("APP_PASSWORD", "")
+APP_SECRET   = os.getenv("APP_SECRET", "dev-secret-change-in-production")
+TOKEN_TTL    = 12 * 3600  # 12 horas
+
+
+def _make_token(username: str) -> str:
+    payload = base64.b64encode(
+        json.dumps({"u": username, "t": int(time.time())}).encode()
+    ).decode()
+    sig = hmac.new(APP_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
+
+
+def _verify_token(token: str) -> bool:
+    try:
+        payload, sig = token.rsplit(".", 1)
+        expected = hmac.new(APP_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return False
+        data = json.loads(base64.b64decode(payload))
+        return time.time() - data["t"] < TOKEN_TTL
+    except Exception:
+        return False
+
+
+def require_auth(request: Request):
+    token = request.headers.get("X-Auth-Token", "")
+    if not _verify_token(token):
+        raise HTTPException(status_code=401, detail="Não autenticado. Faça login.")
 
 # ── Supabase (opcional — ativo quando SUPABASE_URL estiver definido) ──────────
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -112,6 +148,15 @@ def _session_get(session_id: str) -> dict | None:
 
 # ── Rotas ─────────────────────────────────────────────────────────────────────
 
+@app.post("/auth/login")
+async def login(username: str = Form(...), password: str = Form(...)):
+    if not APP_PASSWORD:
+        raise HTTPException(status_code=503, detail="APP_PASSWORD não configurada no servidor.")
+    if username == APP_USERNAME and password == APP_PASSWORD:
+        return {"token": _make_token(username), "username": username}
+    raise HTTPException(status_code=401, detail="Usuário ou senha inválidos.")
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     # Tenta caminhos possíveis (local e Vercel)
@@ -126,7 +171,7 @@ async def index():
     raise HTTPException(status_code=404, detail="index.html não encontrado")
 
 
-@app.post("/processar")
+@app.post("/processar", dependencies=[Depends(require_auth)])
 async def processar(
     competencia: str = Form(...),
     estornos_json: str = Form(default="[]"),
@@ -239,8 +284,8 @@ async def processar(
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-@app.get("/exportar/{session_id}")
-async def exportar(session_id: str):
+@app.get("/exportar/{session_id}", dependencies=[Depends(require_auth)])
+async def exportar(session_id: str, request: Request):
     session = _session_get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Sessão não encontrada.")

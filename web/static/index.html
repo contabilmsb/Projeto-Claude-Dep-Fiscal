@@ -6,6 +6,23 @@
 <title>Apuração PIS/COFINS — MSB Medical</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
+/* ── Login Screen ── */
+#login-screen { position: fixed; inset: 0; background: var(--navy); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+#login-screen.hidden { display: none; }
+.login-box { background: #fff; border-radius: 16px; padding: 40px; width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.login-logo { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: #94A3B8; text-transform: uppercase; margin-bottom: 4px; }
+.login-title { font-size: 22px; font-weight: 800; color: #1E293B; margin-bottom: 4px; }
+.login-sub { font-size: 13px; color: #64748B; margin-bottom: 28px; }
+.login-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
+.login-field label { font-size: 12px; font-weight: 700; color: #475569; }
+.login-field input { border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; font-size: 14px; color: #1E293B; background: #F8FAFC; outline: none; }
+.login-field input:focus { border-color: #2563EB; background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+.login-btn { width: 100%; padding: 12px; background: #2563EB; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px; transition: background .15s; }
+.login-btn:hover { background: #1D4ED8; }
+.login-btn:disabled { opacity: .5; cursor: not-allowed; }
+.login-error { font-size: 12px; color: #EF4444; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; padding: 8px 10px; margin-top: 12px; display: none; }
+.login-footer { font-size: 10px; color: #94A3B8; text-align: center; margin-top: 20px; }
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
   --navy:    #1B2A4A;
@@ -222,6 +239,26 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 </head>
 <body>
 
+<!-- ═══════════ LOGIN ═══════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">MSB Medical</div>
+    <div class="login-title">Apuração PIS/COFINS</div>
+    <div class="login-sub">Acesso restrito — faça login para continuar</div>
+    <div class="login-field">
+      <label>Usuário</label>
+      <input type="text" id="login-user" placeholder="seu usuário" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()" />
+    </div>
+    <div class="login-field">
+      <label>Senha</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" />
+    </div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-footer">Regime Cumulativo · Lei 9.718/98 · CNPJ 06.167.295/0001-71</div>
+  </div>
+</div>
+
 <!-- ═══════════ SIDEBAR ═══════════ -->
 <nav id="sidebar">
   <div class="sb-brand">
@@ -247,7 +284,10 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       Exportar Excel
     </div>
   </div>
-  <div class="sb-footer">v1.0 &nbsp;·&nbsp; Lei 9.718/98 &nbsp;·&nbsp; CNPJ 06.167.295/0001-71</div>
+  <div class="sb-footer" style="display:flex;justify-content:space-between;align-items:center;">
+    <span>v1.0 · Lei 9.718/98</span>
+    <span id="logout-btn" onclick="doLogout()" style="cursor:pointer;color:rgba(255,255,255,.4);font-size:11px;" title="Sair">⏻ Sair</span>
+  </div>
 </nav>
 
 <!-- ═══════════ MAIN ═══════════ -->
@@ -464,6 +504,51 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 
 </main>
 <script>
+// ═══ Auth ═══
+function _getToken() { return sessionStorage.getItem('auth_token') || ''; }
+
+function _checkAuth() {
+  const token = _getToken();
+  if (!token) { document.getElementById('login-screen').classList.remove('hidden'); return false; }
+  document.getElementById('login-screen').classList.add('hidden');
+  return true;
+}
+
+async function doLogin() {
+  const user = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const btn  = document.getElementById('login-btn');
+  const err  = document.getElementById('login-error');
+  if (!user || !pass) { err.textContent = 'Preencha usuário e senha.'; err.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Aguarde…'; err.style.display = 'none';
+  try {
+    const fd = new FormData();
+    fd.append('username', user); fd.append('password', pass);
+    const res = await fetch('/auth/login', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Erro ao autenticar');
+    sessionStorage.setItem('auth_token', data.token);
+    sessionStorage.setItem('auth_user', data.username);
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('login-pass').value = '';
+  } catch(e) {
+    err.textContent = e.message; err.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Entrar';
+  }
+}
+
+function doLogout() {
+  sessionStorage.removeItem('auth_token');
+  sessionStorage.removeItem('auth_user');
+  // Reset estado
+  appState.resultado = null; appState.sessionId = null;
+  ['dashboard','consolidacao','exportar'].forEach(p => document.querySelector(`[data-page="${p}"]`).classList.add('disabled'));
+  navigate('upload');
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('login-user').value = '';
+}
+
 // ═══ Estado ═══
 const appState = { resultado: null, sessionId: null, sortKey: 'nf', sortAsc: true, charts: {}, alertNFs: new Set(), consolidacaoData: [] };
 
@@ -481,7 +566,7 @@ const FILE_SLOTS = [
 const uploadedFiles = {};
 
 // ═══ Init ═══
-document.addEventListener('DOMContentLoaded', () => { renderUploadGrid(); updateStatusBox(); });
+document.addEventListener('DOMContentLoaded', () => { _checkAuth(); renderUploadGrid(); updateStatusBox(); });
 
 function renderUploadGrid() {
   document.getElementById('upload-grid').innerHTML = FILE_SLOTS.map(s => `
@@ -547,7 +632,7 @@ async function processar() {
   FILE_SLOTS.forEach(s => { if (uploadedFiles[s.key]) fd.append(s.key, uploadedFiles[s.key]); });
 
   try {
-    const res = await fetch('/processar', { method: 'POST', body: fd });
+    const res = await fetch('/processar', { method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() } });
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.detail || data.error || 'Erro no processamento');
 
@@ -779,7 +864,14 @@ function renderExportar(d) {
 
 async function exportar() {
   if (!appState.sessionId) return;
-  window.location.href = `/exportar/${appState.sessionId}`;
+  // Usa fetch com header de auth e faz download via blob
+  const res = await fetch(`/exportar/${appState.sessionId}`, { headers: { 'X-Auth-Token': _getToken() } });
+  if (!res.ok) { alert('Erro ao baixar o arquivo. Faça login novamente.'); doLogout(); return; }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = document.getElementById('export-filename').textContent || 'apuracao.xlsx';
+  a.click(); URL.revokeObjectURL(url);
 }
 
 // ═══ Navegação ═══
