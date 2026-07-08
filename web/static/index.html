@@ -141,10 +141,11 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 /* ══════════════════════════════════
    DASHBOARD PAGE
 ══════════════════════════════════ */
-.dash-body { flex: 1; display: grid; grid-template-columns: 1fr 380px; grid-template-rows: 1fr; overflow: hidden; }
+.dash-scroll-wrap { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.dash-body { display: grid; grid-template-columns: 1fr 380px; min-height: 480px; }
 
 /* Left col: cards + charts */
-.dash-left { display: flex; flex-direction: column; overflow-y: auto; padding: 18px 18px 18px 28px; gap: 16px; }
+.dash-left { display: flex; flex-direction: column; padding: 18px 18px 18px 28px; gap: 16px; }
 
 /* Right col: table + alerts */
 .dash-right { background: var(--white); border-left: 1px solid var(--gray200); display: flex; flex-direction: column; overflow: hidden; }
@@ -443,110 +444,117 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       Dashboard
       <span class="comp-badge" id="dash-comp"></span>
     </h2>
-    <p id="dash-subtitle">Resumo da apuração</p>
-  </div>
-  <div class="period-selector" id="dash-period-row" style="display:none;">
-    <span class="period-label">Competência:</span>
-    <select class="period-select" id="dash-period-select" onchange="trocarPeriodo('dashboard', this.value)">
-      <option value="">— selecione —</option>
-    </select>
-  </div>
-
-  <!-- Empty state (sem resultado) -->
-  <div class="dash-empty" id="dash-empty">
-    <img src="/static/msb-logo.png" alt="MSB Medical System do Brasil" style="width:180px;margin-bottom:8px;opacity:.7;">
-    <h3>Portal de Apuração PIS/COFINS</h3>
-    <p>Faça login para acessar o upload de arquivos, processar a apuração e exportar a planilha fiscal.</p>
-    <button class="btn-entrar-lg" onclick="openLoginModal()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-      Entrar
-    </button>
-    <p style="font-size:11px;color:var(--gray400);">MSB Medical System do Brasil · CNPJ 06.167.295/0001-71 · Regime Cumulativo · Lei 9.718/98</p>
-  </div>
-
-  <div class="dash-body" id="dash-content" style="display:none;">
-    <!-- Left -->
-    <div class="dash-left">
-      <div class="cards-grid">
-        <div class="card accent-base">
-          <div class="card-label">Base de Cálculo</div>
-          <div class="card-value" id="c-base">—</div>
-          <div class="card-sub" id="c-base-sub"></div>
-        </div>
-        <div class="card accent-red">
-          <div class="card-label">Total a Recolher</div>
-          <div class="card-value" id="c-total">—</div>
-          <div class="card-sub">COFINS + PIS</div>
-        </div>
-        <div class="card accent-blue">
-          <div class="card-label">COFINS a Recolher <span class="tag-pill tag-cofins">3%</span></div>
-          <div class="card-value" id="c-cofins">—</div>
-          <div class="card-sub" id="c-cofins-sub"></div>
-        </div>
-        <div class="card accent-amber">
-          <div class="card-label">PIS a Recolher <span class="tag-pill tag-pis">0,65%</span></div>
-          <div class="card-value" id="c-pis">—</div>
-          <div class="card-sub" id="c-pis-sub"></div>
-        </div>
-      </div>
-
-      <div class="charts-grid">
-        <div class="chart-card">
-          <h3>Composição da Base</h3>
-          <div class="chart-wrap"><canvas id="chart-donut"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <h3>Apurado · Retido · A Pagar</h3>
-          <div class="chart-wrap"><canvas id="chart-bar"></canvas></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Right panel -->
-    <div class="dash-right">
-      <div class="right-tabs">
-        <div class="rtab active" onclick="switchTab('tab-base')" id="rtab-tab-base">Detalhamento</div>
-        <div class="rtab" onclick="switchTab('tab-alertas')" id="rtab-tab-alertas">Validação</div>
-      </div>
-
-      <div class="rtab-panel active" id="tab-base">
-        <div class="section-label">Composição da Base Líquida</div>
-        <table class="detail-table" id="detail-table"></table>
-
-        <div class="section-label" style="margin-top:16px;">Apuração dos Tributos</div>
-        <table class="detail-table" id="tributos-table"></table>
-      </div>
-
-      <div class="rtab-panel" id="tab-alertas">
-        <div id="alertas-container"></div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <p id="dash-subtitle" style="margin:0;">Resumo da apuração</p>
+      <div class="period-selector" id="dash-period-row" style="display:none;">
+        <span class="period-label">Competência:</span>
+        <select class="period-select" id="dash-period-select" onchange="trocarPeriodo('dashboard', this.value)">
+          <option value="">— selecione —</option>
+        </select>
       </div>
     </div>
   </div>
-  </div><!-- /dash-content -->
 
-  <!-- Histórico de todas as competências -->
-  <div class="dash-historico" id="dash-historico" style="display:none;">
-    <div class="hist-header">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      Histórico de Competências
+  <!-- wrapper scrollável: empty state + detalhe do período + histórico -->
+  <div class="dash-scroll-wrap">
+
+    <!-- Empty state (sem resultado) -->
+    <div class="dash-empty" id="dash-empty">
+      <img src="/static/msb-logo.png" alt="MSB Medical System do Brasil" style="width:180px;margin-bottom:8px;opacity:.7;">
+      <h3>Portal de Apuração PIS/COFINS</h3>
+      <p>Faça login para acessar o upload de arquivos, processar a apuração e exportar a planilha fiscal.</p>
+      <button class="btn-entrar-lg" onclick="openLoginModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        Entrar
+      </button>
+      <p style="font-size:11px;color:var(--gray400);">MSB Medical System do Brasil · CNPJ 06.167.295/0001-71 · Regime Cumulativo · Lei 9.718/98</p>
     </div>
-    <div class="hist-table-wrap">
-      <table class="hist-table">
-        <thead>
-          <tr>
-            <th>Competência</th>
-            <th class="text-right">NFs</th>
-            <th class="text-right">Base de Cálculo</th>
-            <th class="text-right">COFINS a Recolher</th>
-            <th class="text-right">PIS a Recolher</th>
-            <th class="text-right">Total a Recolher</th>
-          </tr>
-        </thead>
-        <tbody id="hist-tbody"></tbody>
-        <tfoot id="hist-tfoot"></tfoot>
-      </table>
+
+    <!-- Detalhe do período selecionado -->
+    <div class="dash-body" id="dash-content" style="display:none;">
+      <!-- Left -->
+      <div class="dash-left">
+        <div class="cards-grid">
+          <div class="card accent-base">
+            <div class="card-label">Base de Cálculo</div>
+            <div class="card-value" id="c-base">—</div>
+            <div class="card-sub" id="c-base-sub"></div>
+          </div>
+          <div class="card accent-red">
+            <div class="card-label">Total a Recolher</div>
+            <div class="card-value" id="c-total">—</div>
+            <div class="card-sub">COFINS + PIS</div>
+          </div>
+          <div class="card accent-blue">
+            <div class="card-label">COFINS a Recolher <span class="tag-pill tag-cofins">3%</span></div>
+            <div class="card-value" id="c-cofins">—</div>
+            <div class="card-sub" id="c-cofins-sub"></div>
+          </div>
+          <div class="card accent-amber">
+            <div class="card-label">PIS a Recolher <span class="tag-pill tag-pis">0,65%</span></div>
+            <div class="card-value" id="c-pis">—</div>
+            <div class="card-sub" id="c-pis-sub"></div>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3>Composição da Base</h3>
+            <div class="chart-wrap"><canvas id="chart-donut"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>Apurado · Retido · A Pagar</h3>
+            <div class="chart-wrap"><canvas id="chart-bar"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right panel -->
+      <div class="dash-right">
+        <div class="right-tabs">
+          <div class="rtab active" onclick="switchTab('tab-base')" id="rtab-tab-base">Detalhamento</div>
+          <div class="rtab" onclick="switchTab('tab-alertas')" id="rtab-tab-alertas">Validação</div>
+        </div>
+
+        <div class="rtab-panel active" id="tab-base">
+          <div class="section-label">Composição da Base Líquida</div>
+          <table class="detail-table" id="detail-table"></table>
+
+          <div class="section-label" style="margin-top:16px;">Apuração dos Tributos</div>
+          <table class="detail-table" id="tributos-table"></table>
+        </div>
+
+        <div class="rtab-panel" id="tab-alertas">
+          <div id="alertas-container"></div>
+        </div>
+      </div>
+    </div><!-- /dash-content -->
+
+    <!-- Histórico de todas as competências -->
+    <div class="dash-historico" id="dash-historico" style="display:none;">
+      <div class="hist-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Histórico de Competências
+      </div>
+      <div class="hist-table-wrap">
+        <table class="hist-table">
+          <thead>
+            <tr>
+              <th>Competência</th>
+              <th class="text-right">NFs</th>
+              <th class="text-right">Base de Cálculo</th>
+              <th class="text-right">COFINS a Recolher</th>
+              <th class="text-right">PIS a Recolher</th>
+              <th class="text-right">Total a Recolher</th>
+            </tr>
+          </thead>
+          <tbody id="hist-tbody"></tbody>
+          <tfoot id="hist-tfoot"></tfoot>
+        </table>
+      </div>
     </div>
-  </div>
+
+  </div><!-- /dash-scroll-wrap -->
 </div>
 
 <!-- ─────────────── CONSOLIDAÇÃO ─────────────── -->
