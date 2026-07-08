@@ -111,11 +111,65 @@ def _competencia_to_month_year(competencia: str) -> tuple[int, int]:
     return int(parts[0]), int(parts[1])
 
 
+def _totais_fingerprint(resultado: dict) -> dict:
+    """Extrai os campos numéricos chave para comparação de duplicidade."""
+    t = resultado.get("totais", {})
+    c = resultado.get("cofins", {})
+    p = resultado.get("pis", {})
+    return {
+        "total_recebido":   round(float(t.get("total_recebido",  0)), 2),
+        "base_liquida":     round(float(t.get("base_liquida",    0)), 2),
+        "cofins_retido":    round(float(t.get("cofins_retido",   0)), 2),
+        "cofins_apurado":   round(float(c.get("valor_apurado",   0)), 2),
+        "cofins_a_pagar":   round(float(c.get("valor_a_pagar",   0)), 2),
+        "pis_retido":       round(float(t.get("pis_retido",      0)), 2),
+        "pis_apurado":      round(float(p.get("valor_apurado",   0)), 2),
+        "pis_a_pagar":      round(float(p.get("valor_a_pagar",   0)), 2),
+        "csll_retida":      round(float(t.get("csll_retida",     0)), 2),
+        "irrf_retido":      round(float(t.get("irrf_retido",     0)), 2),
+        "juros":            round(float(t.get("juros",           0)), 2),
+        "n_nfs":            len(resultado.get("consolidacao", [])),
+    }
+
+
+def _session_get_by_competencia(competencia: str) -> dict | None:
+    """Busca sessão existente para a mesma competência."""
+    if _use_supabase():
+        sb = _get_supabase()
+        rows = sb.table("sessions").select("*") \
+            .eq("competencia", competencia) \
+            .order("created_at", desc=True).limit(1).execute()
+        return rows.data[0] if rows.data else None
+    # Fallback local
+    for sid, s in _sessions.items():
+        if s["resultado"].get("competencia") == competencia:
+            return {**s, "id": sid}
+    return None
+
+
+def _session_update(old_id: str, new_session_id: str, output_path: Path, resultado: dict):
+    """Substitui sessão existente por nova (mesma competência, dados diferentes)."""
+    if _use_supabase():
+        sb = _get_supabase()
+        # Remove arquivo antigo do Storage (ignora erros)
+        try:
+            old_rows = sb.table("sessions").select("storage_path").eq("id", old_id).execute()
+            if old_rows.data and old_rows.data[0].get("storage_path"):
+                sb.storage.from_(SUPABASE_BUCKET).remove([old_rows.data[0]["storage_path"]])
+        except Exception:
+            pass
+        # Apaga registro antigo
+        sb.table("sessions").delete().eq("id", old_id).execute()
+    else:
+        _sessions.pop(old_id, None)
+    # Insere novo
+    _session_save(new_session_id, output_path, resultado)
+
+
 def _session_save(session_id: str, output_path: Path, resultado: dict):
     """Salva sessão localmente ou no Supabase."""
     if _use_supabase():
         sb = _get_supabase()
-        # Faz upload do Excel para o Storage
         storage_path = f"{session_id}/{output_path.name}"
         with open(output_path, "rb") as f:
             sb.storage.from_(SUPABASE_BUCKET).upload(
@@ -123,7 +177,6 @@ def _session_save(session_id: str, output_path: Path, resultado: dict):
                 f.read(),
                 {"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
             )
-        # Salva metadados na tabela
         sb.table("sessions").insert({
             "id": session_id,
             "competencia": resultado["competencia"],
@@ -257,8 +310,8 @@ async def processar(
         consolidacao = _build_consolidacao(dados)
 
         resp = {
-            "competencia": competencia,
-            "session_id": session_id,
+            "competencia":        competencia,
+            "session_id":         session_id,
             "estornos_aplicados": estornos,
             "totais": {
                 "total_recebido": round(resultado.total_recebido, 2),
@@ -294,6 +347,41 @@ async def processar(
             "consolidacao": consolidacao,
         }
 
+        # ── Verificação de duplicidade ──────────────────────────────────
+        existing = _session_get_by_competencia(competencia)
+        if existing:
+            existing_res = existing.get("resultado") or existing.get("resultado", {})
+            fp_new = _totais_fingerprint(resp)
+            fp_old = _totais_fingerprint(existing_res)
+
+            if fp_new == fp_old:
+                # Dados idênticos — descarta o novo processamento
+                existing_id = existing.get("id") or list(_sessions.keys())[-1]
+                resp["session_id"]   = existing_id
+                resp["duplicidade"]  = "identico"
+                resp["aviso"]        = (
+                    f"A competência {competencia} já estava cadastrada e "
+                    "os dados são idênticos. Nenhuma atualização foi necessária."
+                )
+                return resp
+
+            # Dados diferentes — atualiza
+            old_id = existing.get("id") or list(_sessions.keys())[-1]
+            _session_update(old_id, session_id, output_path, resp)
+            resp["duplicidade"] = "atualizado"
+            resp["aviso"] = (
+                f"A competência {competencia} já existia com dados diferentes. "
+                "O registro foi atualizado com os novos valores."
+            )
+            # Calcula diferenças para exibição
+            diffs = {
+                k: {"anterior": fp_old[k], "novo": fp_new[k]}
+                for k in fp_new if fp_new[k] != fp_old[k]
+            }
+            resp["diferencas"] = diffs
+            return resp
+
+        # ── Novo registro ────────────────────────────────────────────────
         _session_save(session_id, output_path, resp)
         return resp
 

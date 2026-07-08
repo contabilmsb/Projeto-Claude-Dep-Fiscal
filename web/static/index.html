@@ -249,6 +249,17 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 .tag-cofins { background: rgba(37,99,235,.1); color: var(--blue); }
 .tag-pis    { background: rgba(245,158,11,.1); color: var(--amber); }
 
+/* Toast de notificação */
+#toast { position: fixed; bottom: 24px; right: 24px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast-item { padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,.18); opacity: 0; transform: translateY(10px); transition: all .3s; pointer-events: auto; max-width: 380px; }
+.toast-item.show { opacity: 1; transform: translateY(0); }
+.toast-ok   { background: #F0FDF4; border: 1px solid #BBF7D0; color: #065F46; }
+.toast-warn { background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; }
+.toast-info { background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF; }
+.toast-item table { margin-top: 6px; font-size: 11px; width: 100%; border-collapse: collapse; }
+.toast-item td { padding: 2px 4px; }
+.toast-item td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -537,6 +548,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 </div>
 
 </main>
+<div id="toast"></div>
 <script>
 // ═══ Auth ═══
 function _getToken() { return sessionStorage.getItem('auth_token') || ''; }
@@ -733,7 +745,19 @@ async function processar() {
     renderExportar(data);
     updateAuthUI();
 
-    document.getElementById('upload-status').textContent = '✓ Concluído com sucesso';
+    // Feedback de duplicidade
+    if (data.duplicidade === 'identico') {
+      document.getElementById('upload-status').textContent = '⚠ Sem dados novos';
+      const em = document.getElementById('error-msg');
+      em.style.background = '#FFFBEB'; em.style.borderColor = '#FDE68A'; em.style.color = '#92400E';
+      em.textContent = '⚠ ' + data.aviso;
+      em.style.display = 'block';
+    } else if (data.duplicidade === 'atualizado') {
+      document.getElementById('upload-status').textContent = '✓ Registro atualizado';
+      _showDiffToast(data);
+    } else {
+      document.getElementById('upload-status').textContent = '✓ Concluído com sucesso';
+    }
     navigate('dashboard');
   } catch (e) {
     const em = document.getElementById('error-msg');
@@ -976,6 +1000,52 @@ function navigate(page) {
   document.querySelectorAll('.page').forEach(e => e.classList.remove('active'));
   item.classList.add('active');
   document.getElementById(`page-${page}`).classList.add('active');
+}
+
+// ═══ Toast ═══
+const DIFF_LABELS = {
+  total_recebido: 'Total Recebido',
+  base_liquida:   'Base Líquida',
+  cofins_retido:  'COFINS Retido',
+  cofins_apurado: 'COFINS Apurado',
+  cofins_a_pagar: 'COFINS a Pagar',
+  pis_retido:     'PIS Retido',
+  pis_apurado:    'PIS Apurado',
+  pis_a_pagar:    'PIS a Pagar',
+  csll_retida:    'CSLL Retida',
+  irrf_retido:    'IRRF Retido',
+  juros:          'Juros',
+  n_nfs:          'Qtd. NFs',
+};
+
+function showToast(msg, type = 'ok', duration = 6000, extraHtml = '') {
+  const container = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = `toast-item toast-${type}`;
+  el.innerHTML = msg + extraHtml;
+  container.appendChild(el);
+  requestAnimationFrame(() => { requestAnimationFrame(() => el.classList.add('show')); });
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 350);
+  }, duration);
+}
+
+function _showDiffToast(data) {
+  const diffs = data.diferencas || {};
+  const keys = Object.keys(diffs);
+  if (!keys.length) { showToast('✓ ' + data.aviso, 'ok'); return; }
+  const isNumeric = k => k !== 'n_nfs';
+  const rows = keys.map(k => {
+    const ant = isNumeric(k) ? brl(diffs[k].anterior) : diffs[k].anterior;
+    const nov = isNumeric(k) ? brl(diffs[k].novo)     : diffs[k].novo;
+    return `<tr><td>${DIFF_LABELS[k] || k}</td><td style="color:#94A3B8;text-decoration:line-through">${ant}</td><td>→ <strong>${nov}</strong></td></tr>`;
+  }).join('');
+  showToast(
+    `🔄 <strong>Competência ${data.competencia} atualizada</strong>`,
+    'info', 10000,
+    `<table>${rows}</table>`
+  );
 }
 
 // ═══ Formatação ═══
