@@ -763,8 +763,12 @@ function updateAuthUI() {
     );
   }
 
-  // Dashboard: mostra dados se houver resultado (público), empty state caso contrário
-  const hasResult = !!appState.resultado;
+  // Seletor de período: visível quando logado
+  const periodRow = document.getElementById('dash-period-row');
+  if (periodRow) periodRow.style.display = auth ? 'flex' : 'none';
+
+  // Dashboard: mostra dados se houver resultado ou modo acumulado disponível
+  const hasResult = !!appState.resultado || (auth && _sessoes.length > 0);
   document.getElementById('dash-empty').style.display   = hasResult ? 'none' : 'flex';
   document.getElementById('dash-content').style.display = hasResult ? 'grid' : 'none';
 }
@@ -834,7 +838,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (data && data.competencia) {
         appState.resultado = data;
         appState.sessionId = data.session_id;
-        renderDashboard(data);
+        // Usuário não logado: exibe último resultado no dashboard
+        if (!_isLoggedIn()) renderDashboard(data);
         renderConsolidacao(data.consolidacao, data.alertas);
         renderExportar(data);
         updateAuthUI();
@@ -1192,9 +1197,28 @@ async function carregarSessoes() {
     if (!res.ok) return;
     _sessoes = await res.json();
     _preencherSelects();
-    // Auto-carrega o período mais recente se não houver resultado na tela
-    if (_sessoes.length > 0 && !appState.resultado) {
-      await trocarPeriodo('consolidacao', _sessoes[0].id);
+    if (_sessoes.length > 0) {
+      // Dashboard: exibe acumulado de todas as competências por padrão
+      renderDashboardAcumulado();
+      // Carrega dados completos do período mais recente para Consolidação/Exportar
+      if (!appState.resultado) {
+        const r = await fetch(`/sessao/${_sessoes[0].id}`, { headers: { 'X-Auth-Token': _getToken() } });
+        if (r.ok) {
+          const data = await r.json();
+          appState.resultado = data;
+          appState.sessionId = data.session_id || _sessoes[0].id;
+          renderConsolidacao(data.consolidacao, data.alertas);
+          renderExportar(data);
+          ['consolidacao','exportar'].forEach(p =>
+            document.querySelector(`[data-page="${p}"]`).classList.remove('disabled')
+          );
+          // Seleciona o período mais recente nos selects de Consolidação/Exportar
+          ['cons-period-select','exp-period-select'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = appState.sessionId;
+          });
+        }
+      }
     }
   } catch(_) {}
 }
@@ -1213,21 +1237,26 @@ function _preencherSelects() {
     const el = document.getElementById(id);
     if (!el) return;
     const current = el.value;
-    el.innerHTML = '<option value="">— selecione —</option>' + opts;
-    // Restaura seleção atual ou seleciona o da sessão ativa
-    if (appState.sessionId) {
-      el.value = appState.sessionId;
-    } else if (current) {
-      el.value = current;
+    // Dashboard usa "Todas as competências" como padrão
+    const defaultOpt = id === 'dash-period-select'
+      ? '<option value="">Todas as competências</option>'
+      : '<option value="">— selecione —</option>';
+    el.innerHTML = defaultOpt + opts;
+    // Dashboard fica em "Todas" por padrão; outros restauram seleção anterior
+    if (id !== 'dash-period-select') {
+      if (appState.sessionId) el.value = appState.sessionId;
+      else if (current) el.value = current;
     }
   });
-  // Mostra/esconde seletor de período e histórico no dashboard
-  const periodRow = document.getElementById('dash-period-row');
-  if (periodRow) periodRow.style.display = _isLoggedIn() && _sessoes.length ? 'flex' : 'none';
   renderDashboardHistorico();
 }
 
 async function trocarPeriodo(pagina, sessionId) {
+  // Dashboard sem período selecionado = vista acumulada
+  if (pagina === 'dashboard' && !sessionId) {
+    renderDashboardAcumulado();
+    return;
+  }
   if (!sessionId) return;
 
   // Sincroniza todos os selects de período
@@ -1235,6 +1264,10 @@ async function trocarPeriodo(pagina, sessionId) {
     const el = document.getElementById(id);
     if (el) el.value = sessionId;
   });
+
+  // Restaura painel direito (pode ter sido ocultado pelo modo acumulado)
+  const dashRight = document.querySelector('.dash-right');
+  if (dashRight) dashRight.style.display = '';
 
   // Se já é a sessão ativa, não recarrega
   if (appState.sessionId === sessionId) return;
@@ -1306,6 +1339,78 @@ function renderDashboardHistorico() {
   } else {
     tfoot.innerHTML = '';
   }
+}
+
+// ═══ Dashboard Acumulado ═══
+function renderDashboardAcumulado() {
+  if (!_sessoes.length) return;
+
+  const total = _sessoes.reduce((acc, s) => ({
+    base:   acc.base   + (s.base_liquida   || 0),
+    cofins: acc.cofins + (s.cofins_a_pagar || 0),
+    pis:    acc.pis    + (s.pis_a_pagar    || 0),
+    total:  acc.total  + (s.total_a_pagar  || 0),
+    nfs:    acc.nfs    + (s.nf_count       || 0),
+  }), {base:0, cofins:0, pis:0, total:0, nfs:0});
+
+  // Cabeçalho
+  document.getElementById('dash-comp').textContent = 'Acumulado';
+  document.getElementById('dash-subtitle').textContent =
+    `${total.nfs} NFs processadas · ${_sessoes.length} competência${_sessoes.length > 1 ? 's' : ''}`;
+
+  // Cards
+  document.getElementById('c-base').textContent    = brl(total.base);
+  document.getElementById('c-total').textContent   = brl(total.total);
+  document.getElementById('c-cofins').textContent  = brl(total.cofins);
+  document.getElementById('c-pis').textContent     = brl(total.pis);
+  document.getElementById('c-base-sub').textContent   = `${_sessoes.length} competências acumuladas`;
+  document.getElementById('c-cofins-sub').textContent = `${_sessoes.length} competências`;
+  document.getElementById('c-pis-sub').textContent    = `${_sessoes.length} competências`;
+
+  // Mostra dash-content, esconde empty state e painel direito
+  document.getElementById('dash-empty').style.display   = 'none';
+  document.getElementById('dash-content').style.display = 'grid';
+  const dashRight = document.querySelector('.dash-right');
+  if (dashRight) dashRight.style.display = 'none';
+
+  // Gráficos comparativos por competência
+  const labels  = [..._sessoes].reverse().map(s => s.competencia);
+  const cofins  = [..._sessoes].reverse().map(s => s.cofins_a_pagar || 0);
+  const pis     = [..._sessoes].reverse().map(s => s.pis_a_pagar    || 0);
+  const bases   = [..._sessoes].reverse().map(s => s.base_liquida   || 0);
+
+  if (appState.charts.donut) appState.charts.donut.destroy();
+  appState.charts.donut = new Chart(document.getElementById('chart-donut'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'COFINS', data: cofins, backgroundColor: '#2563EB', borderRadius: 4 },
+        { label: 'PIS',    data: pis,    backgroundColor: '#D97706', borderRadius: 4 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { font: {size:11} } } },
+      scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: v => 'R$' + (v/1000).toFixed(0) + 'k' } } },
+    },
+  });
+
+  if (appState.charts.bar) appState.charts.bar.destroy();
+  appState.charts.bar = new Chart(document.getElementById('chart-bar'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Base de Cálculo', data: bases, backgroundColor: '#10B981', borderRadius: 4 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { font: {size:11} } } },
+      scales: { y: { ticks: { callback: v => 'R$' + (v/1000).toFixed(0) + 'k' } } },
+    },
+  });
+
+  renderDashboardHistorico();
 }
 
 // ═══ Usuários ═══
