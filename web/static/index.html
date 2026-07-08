@@ -204,6 +204,27 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 .dt-total { color: var(--green); }
 
 /* ══════════════════════════════════
+   DASHBOARD HISTÓRICO
+══════════════════════════════════ */
+.dash-historico { margin: 0 28px 24px; background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; flex-shrink: 0; }
+.hist-header { display: flex; align-items: center; gap: 8px; padding: 12px 18px; font-size: 12px; font-weight: 700; color: var(--gray600); text-transform: uppercase; letter-spacing: .5px; background: var(--gray100); border-bottom: 1px solid var(--gray200); }
+.hist-table-wrap { overflow-x: auto; }
+.hist-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.hist-table thead th { background: var(--gray100); font-size: 10px; font-weight: 700; color: var(--gray600); text-transform: uppercase; letter-spacing: .4px; padding: 9px 14px; border-bottom: 1px solid var(--gray200); white-space: nowrap; }
+.hist-table tbody tr { cursor: pointer; transition: background .12s; }
+.hist-table tbody tr:hover { background: rgba(37,99,235,.05); }
+.hist-table tbody tr.hist-row-active { background: rgba(37,99,235,.08); }
+.hist-table tbody tr.hist-row-active td:first-child { border-left: 3px solid var(--blue); padding-left: 11px; }
+.hist-table td { padding: 9px 14px; border-bottom: 1px solid var(--gray100); }
+.hist-table tfoot td { padding: 9px 14px; font-size: 11px; font-weight: 700; color: var(--gray700); background: var(--gray100); border-top: 2px solid var(--gray200); }
+.text-right { text-align: right; font-variant-numeric: tabular-nums; }
+.hist-comp { font-weight: 700; color: var(--gray800); }
+.hist-nf { color: var(--gray500); font-size: 11px; }
+.hist-cofins { color: var(--blue); font-weight: 600; }
+.hist-pis { color: #D97706; font-weight: 600; }
+.hist-total { color: var(--red); font-weight: 700; }
+
+/* ══════════════════════════════════
    CONSOLIDAÇÃO PAGE
 ══════════════════════════════════ */
 .cons-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 16px 28px 0; }
@@ -424,6 +445,12 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     </h2>
     <p id="dash-subtitle">Resumo da apuração</p>
   </div>
+  <div class="period-selector" id="dash-period-row" style="display:none;">
+    <span class="period-label">Competência:</span>
+    <select class="period-select" id="dash-period-select" onchange="trocarPeriodo('dashboard', this.value)">
+      <option value="">— selecione —</option>
+    </select>
+  </div>
 
   <!-- Empty state (sem resultado) -->
   <div class="dash-empty" id="dash-empty">
@@ -496,6 +523,30 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     </div>
   </div>
   </div><!-- /dash-content -->
+
+  <!-- Histórico de todas as competências -->
+  <div class="dash-historico" id="dash-historico" style="display:none;">
+    <div class="hist-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Histórico de Competências
+    </div>
+    <div class="hist-table-wrap">
+      <table class="hist-table">
+        <thead>
+          <tr>
+            <th>Competência</th>
+            <th class="text-right">NFs</th>
+            <th class="text-right">Base de Cálculo</th>
+            <th class="text-right">COFINS a Recolher</th>
+            <th class="text-right">PIS a Recolher</th>
+            <th class="text-right">Total a Recolher</th>
+          </tr>
+        </thead>
+        <tbody id="hist-tbody"></tbody>
+        <tfoot id="hist-tfoot"></tfoot>
+      </table>
+    </div>
+  </div>
 </div>
 
 <!-- ─────────────── CONSOLIDAÇÃO ─────────────── -->
@@ -1150,7 +1201,7 @@ function _preencherSelects() {
       }).join('')
     : '<option value="" disabled>Nenhum período salvo</option>';
 
-  ['cons-period-select', 'exp-period-select'].forEach(id => {
+  ['dash-period-select', 'cons-period-select', 'exp-period-select'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const current = el.value;
@@ -1162,15 +1213,20 @@ function _preencherSelects() {
       el.value = current;
     }
   });
+  // Mostra/esconde seletor de período e histórico no dashboard
+  const periodRow = document.getElementById('dash-period-row');
+  if (periodRow) periodRow.style.display = _isLoggedIn() && _sessoes.length ? 'flex' : 'none';
+  renderDashboardHistorico();
 }
 
 async function trocarPeriodo(pagina, sessionId) {
   if (!sessionId) return;
 
-  // Sincroniza o outro select
-  const outro = pagina === 'consolidacao' ? 'exp-period-select' : 'cons-period-select';
-  const outroEl = document.getElementById(outro);
-  if (outroEl) outroEl.value = sessionId;
+  // Sincroniza todos os selects de período
+  ['dash-period-select', 'cons-period-select', 'exp-period-select'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = sessionId;
+  });
 
   // Se já é a sessão ativa, não recarrega
   if (appState.sessionId === sessionId) return;
@@ -1193,6 +1249,7 @@ async function trocarPeriodo(pagina, sessionId) {
     renderConsolidacao(data.consolidacao, data.alertas);
     renderExportar(data);
     updateAuthUI();
+    renderDashboardHistorico();
 
     // Habilita as páginas se ainda estavam bloqueadas
     ['consolidacao','exportar'].forEach(p =>
@@ -1202,6 +1259,44 @@ async function trocarPeriodo(pagina, sessionId) {
     showToast(`✓ Competência ${data.competencia} carregada`, 'ok', 3000);
   } catch(e) {
     showToast('⚠ Erro ao carregar período: ' + e.message, 'warn');
+  }
+}
+
+function renderDashboardHistorico() {
+  const el      = document.getElementById('dash-historico');
+  const tbody   = document.getElementById('hist-tbody');
+  const tfoot   = document.getElementById('hist-tfoot');
+  if (!el || !tbody) return;
+  if (!_isLoggedIn() || !_sessoes.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+
+  let sumBase = 0, sumCofins = 0, sumPis = 0, sumTotal = 0;
+  tbody.innerHTML = _sessoes.map(s => {
+    const active = appState.sessionId === s.id ? ' class="hist-row-active"' : '';
+    sumBase   += s.base_liquida   || 0;
+    sumCofins += s.cofins_a_pagar || 0;
+    sumPis    += s.pis_a_pagar    || 0;
+    sumTotal  += s.total_a_pagar  || 0;
+    return `<tr${active} onclick="trocarPeriodo('dashboard','${s.id}')">
+      <td class="hist-comp">${s.competencia}</td>
+      <td class="text-right hist-nf">${s.nf_count ?? '—'}</td>
+      <td class="text-right">${brl(s.base_liquida || 0)}</td>
+      <td class="text-right hist-cofins">${brl(s.cofins_a_pagar || 0)}</td>
+      <td class="text-right hist-pis">${brl(s.pis_a_pagar || 0)}</td>
+      <td class="text-right hist-total">${brl(s.total_a_pagar || 0)}</td>
+    </tr>`;
+  }).join('');
+
+  if (_sessoes.length > 1) {
+    tfoot.innerHTML = `<tr>
+      <td colspan="2">TOTAL ACUMULADO (${_sessoes.length} competências)</td>
+      <td class="text-right">${brl(sumBase)}</td>
+      <td class="text-right hist-cofins">${brl(sumCofins)}</td>
+      <td class="text-right hist-pis">${brl(sumPis)}</td>
+      <td class="text-right hist-total">${brl(sumTotal)}</td>
+    </tr>`;
+  } else {
+    tfoot.innerHTML = '';
   }
 }
 

@@ -418,16 +418,34 @@ async def ultimo_resultado():
 
 @app.get("/sessoes", dependencies=[Depends(require_auth)])
 async def listar_sessoes():
-    """Lista todas as competências disponíveis no banco."""
+    """Lista todas as competências com resumo de totais."""
+    def _resumo(res: dict, sid: str, comp, created) -> dict:
+        totais = res.get("totais") or {}
+        cofins = res.get("cofins") or {}
+        pis    = res.get("pis") or {}
+        return {
+            "id":             sid,
+            "competencia":    comp,
+            "created_at":     created,
+            "base_liquida":   totais.get("base_liquida") or 0,
+            "cofins_a_pagar": cofins.get("valor_a_pagar") or 0,
+            "pis_a_pagar":    pis.get("valor_a_pagar") or 0,
+            "total_a_pagar":  (cofins.get("valor_a_pagar") or 0) + (pis.get("valor_a_pagar") or 0),
+            "nf_count":       len(res.get("consolidacao") or []),
+        }
+
     if _use_supabase():
         sb = _get_supabase()
         rows = sb.table("sessions") \
-            .select("id,competencia,created_at,output_filename") \
+            .select("id,competencia,created_at,resultado") \
             .order("created_at", desc=True).execute()
-        return rows.data or []
+        return [
+            _resumo(r.get("resultado") or {}, r["id"], r["competencia"], r["created_at"])
+            for r in (rows.data or [])
+        ]
     # Fallback local
     return [
-        {"id": sid, "competencia": s["resultado"].get("competencia"), "created_at": None, "output_filename": None}
+        _resumo(s["resultado"], sid, s["resultado"].get("competencia"), None)
         for sid, s in _sessions.items()
     ]
 
