@@ -416,9 +416,8 @@ async def ultimo_resultado():
     return None
 
 
-@app.get("/sessoes", dependencies=[Depends(require_auth)])
-async def listar_sessoes():
-    """Lista todas as competências com resumo de totais."""
+def _build_resumo_list() -> list:
+    """Retorna lista de competências com totais (usado por rotas públicas e protegidas)."""
     def _resumo(res: dict, sid: str, comp, created) -> dict:
         totais = res.get("totais") or {}
         cofins = res.get("cofins") or {}
@@ -443,11 +442,22 @@ async def listar_sessoes():
             _resumo(r.get("resultado") or {}, r["id"], r["competencia"], r["created_at"])
             for r in (rows.data or [])
         ]
-    # Fallback local
     return [
         _resumo(s["resultado"], sid, s["resultado"].get("competencia"), None)
         for sid, s in _sessions.items()
     ]
+
+
+@app.get("/periodos")
+async def listar_periodos_publico():
+    """Lista competências com totais — sem autenticação (somente leitura)."""
+    return _build_resumo_list()
+
+
+@app.get("/sessoes", dependencies=[Depends(require_auth)])
+async def listar_sessoes():
+    """Lista todas as competências com resumo de totais (autenticado)."""
+    return _build_resumo_list()
 
 
 @app.get("/sessao/{session_id}", dependencies=[Depends(require_auth)])

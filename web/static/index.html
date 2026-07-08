@@ -763,12 +763,12 @@ function updateAuthUI() {
     );
   }
 
-  // Seletor de período: visível quando logado
+  // Seletor de período: visível quando há competências carregadas (público)
   const periodRow = document.getElementById('dash-period-row');
-  if (periodRow) periodRow.style.display = auth ? 'flex' : 'none';
+  if (periodRow) periodRow.style.display = _sessoes.length ? 'flex' : 'none';
 
-  // Dashboard: mostra dados se houver resultado ou modo acumulado disponível
-  const hasResult = !!appState.resultado || (auth && _sessoes.length > 0);
+  // Dashboard: mostra dados se houver resultado ou competências disponíveis
+  const hasResult = !!appState.resultado || _sessoes.length > 0;
   document.getElementById('dash-empty').style.display   = hasResult ? 'none' : 'flex';
   document.getElementById('dash-content').style.display = hasResult ? 'grid' : 'none';
 }
@@ -846,8 +846,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
   } catch(_) {}
-  // Se já estiver logado (sessão persistida), carrega lista de períodos
-  if (_isLoggedIn()) carregarSessoes();
+  // Carrega lista de períodos (público) — sempre
+  carregarSessoes();
 });
 
 function renderUploadGrid() {
@@ -1191,17 +1191,17 @@ function navigate(page) {
 let _sessoes = [];   // cache da lista de sessões
 
 async function carregarSessoes() {
-  if (!_isLoggedIn()) return;
   try {
-    const res = await fetch('/sessoes', { headers: { 'X-Auth-Token': _getToken() } });
+    // /periodos é público; /sessoes (autenticado) retorna o mesmo dado
+    const res = await fetch('/periodos');
     if (!res.ok) return;
     _sessoes = await res.json();
     _preencherSelects();
     if (_sessoes.length > 0) {
       // Dashboard: exibe acumulado de todas as competências por padrão
       renderDashboardAcumulado();
-      // Carrega dados completos do período mais recente para Consolidação/Exportar
-      if (!appState.resultado) {
+      // Carrega dados completos do período mais recente para Consolidação/Exportar (requer login)
+      if (_isLoggedIn() && !appState.resultado) {
         const r = await fetch(`/sessao/${_sessoes[0].id}`, { headers: { 'X-Auth-Token': _getToken() } });
         if (r.ok) {
           const data = await r.json();
@@ -1212,7 +1212,6 @@ async function carregarSessoes() {
           ['consolidacao','exportar'].forEach(p =>
             document.querySelector(`[data-page="${p}"]`).classList.remove('disabled')
           );
-          // Seleciona o período mais recente nos selects de Consolidação/Exportar
           ['cons-period-select','exp-period-select'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = appState.sessionId;
