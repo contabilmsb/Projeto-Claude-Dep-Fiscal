@@ -250,6 +250,14 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 .tag-cofins { background: rgba(37,99,235,.1); color: var(--blue); }
 .tag-pis    { background: rgba(245,158,11,.1); color: var(--amber); }
 
+/* Seletor de período */
+.period-selector { display: flex; align-items: center; gap: 10px; }
+.period-select { border: 1px solid var(--gray200); border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: var(--gray800); background: var(--white); cursor: pointer; min-width: 160px; }
+.period-select:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+.period-select option { font-weight: 500; }
+.period-label { font-size: 11px; color: var(--gray400); white-space: nowrap; }
+.period-loading { font-size: 11px; color: var(--gray400); font-style: italic; }
+
 /* ══════════════════════════════════
    USUÁRIOS PAGE
 ══════════════════════════════════ */
@@ -498,7 +506,12 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       Consolidação NF
       <span class="comp-badge" id="cons-comp"></span>
     </h2>
-    <p>Recebimentos e retenções por nota fiscal</p>
+    <div class="period-selector">
+      <span class="period-label">Competência:</span>
+      <select class="period-select" id="cons-period-select" onchange="trocarPeriodo('consolidacao', this.value)">
+        <option value="">— selecione —</option>
+      </select>
+    </div>
   </div>
   <div class="cons-body">
     <div class="table-toolbar">
@@ -534,7 +547,12 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exportar Excel
     </h2>
-    <p>Planilha de apuração no formato padrão da equipe fiscal</p>
+    <div class="period-selector">
+      <span class="period-label">Competência:</span>
+      <select class="period-select" id="exp-period-select" onchange="trocarPeriodo('exportar', this.value)">
+        <option value="">— selecione —</option>
+      </select>
+    </div>
   </div>
   <div class="export-body">
     <div class="export-left">
@@ -702,7 +720,7 @@ async function doLogin() {
     closeLoginModal();
     document.getElementById('login-pass').value = '';
     updateAuthUI();
-    // Se estava tentando navegar para página protegida, vai para upload
+    carregarSessoes();
     navigate('upload');
   } catch(e) {
     err.textContent = e.message; err.style.display = 'block';
@@ -834,6 +852,7 @@ async function processar() {
     renderConsolidacao(data.consolidacao, data.alertas);
     renderExportar(data);
     updateAuthUI();
+    await carregarSessoes();
 
     // Feedback de duplicidade
     if (data.duplicidade === 'identico') {
@@ -1090,7 +1109,86 @@ function navigate(page) {
   document.querySelectorAll('.page').forEach(e => e.classList.remove('active'));
   item.classList.add('active');
   document.getElementById(`page-${page}`).classList.add('active');
-  if (page === 'usuarios') carregarUsuarios();
+  if (page === 'usuarios')    carregarUsuarios();
+  if (page === 'consolidacao' || page === 'exportar') carregarSessoes();
+}
+
+// ═══ Seletor de Período ═══
+let _sessoes = [];   // cache da lista de sessões
+
+async function carregarSessoes() {
+  if (!_isLoggedIn()) return;
+  try {
+    const res = await fetch('/sessoes', { headers: { 'X-Auth-Token': _getToken() } });
+    if (!res.ok) return;
+    _sessoes = await res.json();
+    _preencherSelects();
+  } catch(_) {}
+}
+
+function _preencherSelects() {
+  const opts = _sessoes.length
+    ? _sessoes.map(s => {
+        const dt = s.created_at
+          ? new Date(s.created_at).toLocaleDateString('pt-BR')
+          : '';
+        return `<option value="${s.id}">${s.competencia}${dt ? ' · ' + dt : ''}</option>`;
+      }).join('')
+    : '<option value="" disabled>Nenhum período salvo</option>';
+
+  ['cons-period-select', 'exp-period-select'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const current = el.value;
+    el.innerHTML = '<option value="">— selecione —</option>' + opts;
+    // Restaura seleção atual ou seleciona o da sessão ativa
+    if (appState.sessionId) {
+      el.value = appState.sessionId;
+    } else if (current) {
+      el.value = current;
+    }
+  });
+}
+
+async function trocarPeriodo(pagina, sessionId) {
+  if (!sessionId) return;
+
+  // Sincroniza o outro select
+  const outro = pagina === 'consolidacao' ? 'exp-period-select' : 'cons-period-select';
+  const outroEl = document.getElementById(outro);
+  if (outroEl) outroEl.value = sessionId;
+
+  // Se já é a sessão ativa, não recarrega
+  if (appState.sessionId === sessionId) return;
+
+  // Indicador de carregamento
+  const badge = document.getElementById(pagina === 'consolidacao' ? 'cons-comp' : 'dash-comp');
+  if (badge) badge.textContent = '…';
+
+  try {
+    const res = await fetch(`/sessao/${sessionId}`, {
+      headers: { 'X-Auth-Token': _getToken() }
+    });
+    if (!res.ok) { showToast('⚠ Período não encontrado', 'warn', 3000); return; }
+    const data = await res.json();
+
+    appState.resultado  = data;
+    appState.sessionId  = data.session_id || sessionId;
+
+    renderDashboard(data);
+    renderConsolidacao(data.consolidacao, data.alertas);
+    renderExportar(data);
+    updateAuthUI();
+
+    // Habilita as páginas se ainda estavam bloqueadas
+    ['consolidacao','exportar'].forEach(p =>
+      document.querySelector(`[data-page="${p}"]`).classList.remove('disabled')
+    );
+
+    showToast(`✓ Competência ${data.competencia} carregada`, 'ok', 3000);
+  } catch(e) {
+    showToast('⚠ Erro ao carregar período: ' + e.message, 'warn');
+  }
 }
 
 // ═══ Usuários ═══

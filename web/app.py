@@ -410,11 +410,41 @@ async def ultimo_resultado():
             resultado = r["resultado"]
             resultado["session_id"] = r["id"]
             return resultado
-    # Fallback local: último da memória
     if _sessions:
         last = list(_sessions.values())[-1]
         return last["resultado"]
     return None
+
+
+@app.get("/sessoes", dependencies=[Depends(require_auth)])
+async def listar_sessoes():
+    """Lista todas as competências disponíveis no banco."""
+    if _use_supabase():
+        sb = _get_supabase()
+        rows = sb.table("sessions") \
+            .select("id,competencia,created_at,output_filename") \
+            .order("created_at", desc=True).execute()
+        return rows.data or []
+    # Fallback local
+    return [
+        {"id": sid, "competencia": s["resultado"].get("competencia"), "created_at": None, "output_filename": None}
+        for sid, s in _sessions.items()
+    ]
+
+
+@app.get("/sessao/{session_id}", dependencies=[Depends(require_auth)])
+async def get_sessao(session_id: str):
+    """Retorna dados completos de uma sessão específica."""
+    session = _session_get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+    if _use_supabase():
+        resultado = session.get("resultado", {})
+        resultado["session_id"] = session.get("id", session_id)
+        return resultado
+    resultado = session["resultado"]
+    resultado["session_id"] = session_id
+    return resultado
 
 
 # ── Gestão de Usuários ───────────────────────────────────────────────────────
