@@ -176,7 +176,9 @@ async def processar(
         else:
             out_dir = OUTPUT_DIR
 
-        output_path = out_dir / f"Apuração PIS COFINS {comp_fmt} {ts}.xlsx"
+        # Nome sem acentos/espaços para compatibilidade com Supabase Storage
+        safe_name = f"Apuracao_PIS_COFINS_{comp_fmt}_{ts}.xlsx"
+        output_path = out_dir / safe_name
 
         output_path, _ = atualizar_template(
             template_path=paths["template"],
