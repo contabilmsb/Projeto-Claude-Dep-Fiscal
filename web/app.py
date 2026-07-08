@@ -17,6 +17,7 @@ import base64
 import hashlib
 import shutil
 import tempfile
+import bcrypt
 from pathlib import Path
 from datetime import datetime
 
@@ -415,6 +416,88 @@ async def ultimo_resultado():
         last = list(_sessions.values())[-1]
         return last["resultado"]
     return None
+
+
+# ── Gestão de Usuários ───────────────────────────────────────────────────────
+
+@app.get("/usuarios", dependencies=[Depends(require_auth)])
+async def listar_usuarios():
+    if not _use_supabase():
+        raise HTTPException(status_code=503, detail="Gestão de usuários requer Supabase.")
+    sb = _get_supabase()
+    rows = sb.table("users").select("id,username,full_name,active,created_at,last_login") \
+        .order("created_at", desc=False).execute()
+    return rows.data or []
+
+
+@app.post("/usuarios", dependencies=[Depends(require_auth)])
+async def criar_usuario(
+    username:  str = Form(...),
+    password:  str = Form(...),
+    full_name: str = Form(default=""),
+):
+    if not _use_supabase():
+        raise HTTPException(status_code=503, detail="Gestão de usuários requer Supabase.")
+    if len(password) < 6:
+        raise HTTPException(status_code=422, detail="Senha deve ter pelo menos 6 caracteres.")
+    sb = _get_supabase()
+    # Verifica duplicidade
+    existing = sb.table("users").select("id").eq("username", username).execute()
+    if existing.data:
+        raise HTTPException(status_code=409, detail=f"Usuário '{username}' já existe.")
+    # Gera hash bcrypt compatível com pgcrypto
+    pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)).decode()
+    result = sb.table("users").insert({
+        "username":      username,
+        "password_hash": pw_hash,
+        "full_name":     full_name or None,
+        "active":        True,
+    }).execute()
+    return {"ok": True, "username": username}
+
+
+@app.patch("/usuarios/{username}", dependencies=[Depends(require_auth)])
+async def atualizar_usuario(
+    username:     str,
+    active:       bool | None = Form(default=None),
+    new_password: str | None  = Form(default=None),
+    full_name:    str | None  = Form(default=None),
+):
+    if not _use_supabase():
+        raise HTTPException(status_code=503, detail="Gestão de usuários requer Supabase.")
+    sb = _get_supabase()
+    patch: dict = {}
+    if active is not None:
+        patch["active"] = active
+    if full_name is not None:
+        patch["full_name"] = full_name
+    if new_password:
+        if len(new_password) < 6:
+            raise HTTPException(status_code=422, detail="Senha deve ter pelo menos 6 caracteres.")
+        patch["password_hash"] = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt(rounds=12)).decode()
+    if not patch:
+        raise HTTPException(status_code=422, detail="Nenhum campo para atualizar.")
+    sb.table("users").update(patch).eq("username", username).execute()
+    return {"ok": True}
+
+
+@app.delete("/usuarios/{username}", dependencies=[Depends(require_auth)])
+async def excluir_usuario(username: str, request: Request):
+    if not _use_supabase():
+        raise HTTPException(status_code=503, detail="Gestão de usuários requer Supabase.")
+    # Impede auto-exclusão
+    token = request.headers.get("X-Auth-Token", "")
+    try:
+        payload = json.loads(base64.b64decode(token.rsplit(".", 1)[0]))
+        if payload.get("u") == username:
+            raise HTTPException(status_code=400, detail="Não é possível excluir o próprio usuário logado.")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+    sb = _get_supabase()
+    sb.table("users").delete().eq("username", username).execute()
+    return {"ok": True}
 
 
 @app.get("/exportar/{session_id}", dependencies=[Depends(require_auth)])
