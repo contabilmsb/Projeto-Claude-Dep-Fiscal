@@ -1271,8 +1271,12 @@ async function trocarPeriodo(pagina, sessionId) {
   const dashRight = document.querySelector('.dash-right');
   if (dashRight) dashRight.style.display = '';
 
-  // Se já é a sessão ativa, não recarrega
-  if (appState.sessionId === sessionId) return;
+  // Se já é a sessão ativa, apenas re-renderiza o dashboard com os dados existentes
+  if (appState.sessionId === sessionId && appState.resultado) {
+    renderDashboard(appState.resultado);
+    renderDashboardHistorico();
+    return;
+  }
 
   // Indicador de carregamento
   const badge = document.getElementById(pagina === 'consolidacao' ? 'cons-comp' : 'dash-comp');
