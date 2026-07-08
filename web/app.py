@@ -303,6 +303,25 @@ async def processar(
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+@app.get("/ultimo-resultado")
+async def ultimo_resultado():
+    """Retorna o resultado mais recente sem autenticação (somente leitura)."""
+    if _use_supabase():
+        sb = _get_supabase()
+        rows = sb.table("sessions").select("resultado,competencia,created_at,id") \
+            .order("created_at", desc=True).limit(1).execute()
+        if rows.data:
+            r = rows.data[0]
+            resultado = r["resultado"]
+            resultado["session_id"] = r["id"]
+            return resultado
+    # Fallback local: último da memória
+    if _sessions:
+        last = list(_sessions.values())[-1]
+        return last["resultado"]
+    return None
+
+
 @app.get("/exportar/{session_id}", dependencies=[Depends(require_auth)])
 async def exportar(session_id: str, request: Request):
     session = _session_get(session_id)

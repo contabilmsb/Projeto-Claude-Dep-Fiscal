@@ -576,10 +576,10 @@ function updateAuthUI() {
       </button>`;
   }
 
-  // Mostra/oculta empty state do dashboard
+  // Dashboard: mostra dados se houver resultado (público), empty state caso contrário
   const hasResult = !!appState.resultado;
-  document.getElementById('dash-empty').style.display   = (!auth || !hasResult) ? 'flex' : 'none';
-  document.getElementById('dash-content').style.display = (auth && hasResult)   ? 'grid' : 'none';
+  document.getElementById('dash-empty').style.display   = hasResult ? 'none' : 'flex';
+  document.getElementById('dash-content').style.display = hasResult ? 'grid' : 'none';
 }
 
 async function doLogin() {
@@ -635,7 +635,26 @@ const FILE_SLOTS = [
 const uploadedFiles = {};
 
 // ═══ Init ═══
-document.addEventListener('DOMContentLoaded', () => { updateAuthUI(); renderUploadGrid(); updateStatusBox(); });
+document.addEventListener('DOMContentLoaded', async () => {
+  updateAuthUI();
+  renderUploadGrid();
+  updateStatusBox();
+  // Carrega último resultado público (sem login)
+  try {
+    const res = await fetch('/ultimo-resultado');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.competencia) {
+        appState.resultado = data;
+        appState.sessionId = data.session_id;
+        renderDashboard(data);
+        renderConsolidacao(data.consolidacao, data.alertas);
+        renderExportar(data);
+        updateAuthUI();
+      }
+    }
+  } catch(_) {}
+});
 
 function renderUploadGrid() {
   document.getElementById('upload-grid').innerHTML = FILE_SLOTS.map(s => `
