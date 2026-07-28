@@ -14,11 +14,19 @@ def _extract_nf(text: str) -> str | None:
     """
     Extrai número de NF (9 dígitos) de um campo de descrição.
     Exemplo: 'Pagamento, cliente 05/05/2026 000018618 COB_BRA_...' → '000018618'
+
+    Quando a NF aparece sem os zeros à esquerda (ex: 'PGTO NF 13243 COM IR...'),
+    usa como alternativa o número que segue o literal 'NF', completando com
+    zeros à esquerda até 9 dígitos — mesma convenção usada em load_vendas.
     """
     if pd.isna(text):
         return None
-    m = re.search(r'\b(\d{9})\b', str(text))
-    return m.group(1) if m else None
+    text = str(text)
+    m = re.search(r'\b(\d{9})\b', text)
+    if m:
+        return m.group(1)
+    m = re.search(r'\bNF\.?\s*(\d+)\b', text, re.IGNORECASE)
+    return m.group(1).zfill(9) if m else None
 
 
 def _find_col(df: pd.DataFrame, *keywords: str) -> str:
