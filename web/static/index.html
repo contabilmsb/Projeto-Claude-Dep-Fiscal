@@ -738,16 +738,16 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
   </div>
 
   <div class="dash-scroll-wrap">
-    <div class="dash-empty" id="ic-empty">
-      <img src="/static/msb-logo.png" alt="MSB Medical System do Brasil" style="width:180px;margin-bottom:8px;opacity:.7;">
-      <h3>Módulo IRPJ / CSLL</h3>
-      <p>Processe a Aplicação Financeira, Variação Cambial Ativa e IRRF do mês para começar. A base de cálculo, CSLL retida e juros são reaproveitados automaticamente da competência já processada no PIS/COFINS.</p>
-    </div>
+    <div style="padding:20px 28px;display:flex;flex-direction:column;gap:20px;">
 
-    <div id="ic-content" style="display:none;padding:20px 28px;flex-direction:column;gap:20px;">
-
+      <!-- Formulário de upload — sempre visível, é aqui que se processa cada mês -->
       <div style="background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;">
         <div class="section-label" style="margin-bottom:10px;">Processar novo mês</div>
+        <p style="font-size:12px;color:var(--gray400);margin:0 0 12px;">
+          Envie apenas os 3 arquivos novos deste mês. A base de cálculo, CSLL retida e juros são
+          reaproveitados automaticamente da competência já processada no módulo PIS/COFINS —
+          processe-a lá primeiro, se ainda não tiver feito.
+        </p>
         <div style="display:grid;grid-template-columns:110px repeat(4,1fr) auto;gap:10px;align-items:end;">
           <div class="form-group">
             <label>Competência *</label>
@@ -776,6 +776,13 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         </div>
         <div class="error-msg" id="ic-error-msg" style="margin-top:10px;"></div>
       </div>
+
+      <!-- Estado vazio — nenhum mês processado ainda neste módulo -->
+      <div id="ic-empty" style="background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;text-align:center;color:var(--gray400);font-size:13px;">
+        Nenhuma competência processada ainda neste módulo. Preencha o formulário acima para começar.
+      </div>
+
+      <div id="ic-content" style="display:none;flex-direction:column;gap:20px;">
 
       <div>
         <div class="section-label" style="margin-bottom:10px;">Mês selecionado — <span id="ic-mes-label">—</span></div>
@@ -832,6 +839,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       </div>
 
       <div id="ic-alertas"></div>
+      </div>
     </div>
   </div>
 </div>
