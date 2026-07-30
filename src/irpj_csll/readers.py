@@ -19,7 +19,7 @@ import re
 import pandas as pd
 from pathlib import Path
 
-from src.readers import _find_col
+from src.readers import _find_col, _extract_nf
 
 
 _EXCEL_EPOCH = pd.Timestamp("1899-12-30")
@@ -73,12 +73,17 @@ def load_variacao_cambial(path: Path, mes: int, ano: int) -> float:
 
 def load_irrf_aplicacao(path: Path, mes: int, ano: int) -> float:
     """
-    Lê a planilha de IRRF e retorna apenas a soma das retenções sobre
-    aplicações financeiras do mês/ano (ex.: "IR BB APLICAÇÃO 30/04/26").
+    Lê a planilha de IRRF e retorna a soma das retenções que NÃO são sobre
+    pagamento de cliente (ex.: "IR BB APLICAÇÃO 30/04/26", "IR RESGATE XP") —
+    ou seja, tudo que não tem um número de NF reconhecível na descrição.
 
     Retenções sobre pagamentos de clientes (ex.: "Pagamento, cliente ...
-    000018789 ...") são ignoradas aqui — já são reaproveitadas do módulo
-    PIS/COFINS (campo irrf_retido da sessão do mês).
+    000018789 ...", com NF de 9 dígitos ou "NF <número>") são ignoradas aqui —
+    já são reaproveitadas do módulo PIS/COFINS (campo irrf_retido da sessão
+    do mês). Usar o mesmo reconhecimento de NF do módulo PIS/COFINS (em vez
+    de uma palavra-chave como "APLICA") evita perder lançamentos com outras
+    descrições (ex.: resgates de fundos/corretoras) que também não são
+    retenção de cliente.
     """
     df = pd.read_excel(path, dtype=str)
     df.columns = df.columns.str.strip()
@@ -97,7 +102,7 @@ def load_irrf_aplicacao(path: Path, mes: int, ano: int) -> float:
 
     datas = _parse_data_col(df[data_col])
     valores = pd.to_numeric(df[val_col], errors="coerce").fillna(0.0)
-    eh_aplicacao = df[desc_col].fillna("").str.contains("APLICA", case=False, regex=False)
+    eh_pagamento_cliente = df[desc_col].apply(_extract_nf).notna()
 
-    mask = (datas.dt.month == mes) & (datas.dt.year == ano) & eh_aplicacao
+    mask = (datas.dt.month == mes) & (datas.dt.year == ano) & ~eh_pagamento_cliente
     return float(valores[mask].sum())
