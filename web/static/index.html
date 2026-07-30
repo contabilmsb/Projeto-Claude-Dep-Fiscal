@@ -2158,6 +2158,10 @@ async function expIcInit() {
       const dt = s.created_at ? new Date(s.created_at).toLocaleDateString('pt-BR') : '';
       return `<option value="${s.id}">${s.competencia}${dt ? ' · ' + dt : ''}</option>`;
     }).join('');
+    if (meses.length) {
+      document.getElementById('exp-ic-mes-select').value = meses[0].id;
+      await expIcCarregarMes(meses[0].id);
+    }
   } catch (_) {}
 
   try {
@@ -2166,6 +2170,12 @@ async function expIcInit() {
     document.getElementById('exp-ic-trim-select').innerHTML = '<option value="">— selecione —</option>' + trimestres.map(t =>
       `<option value="${t.ano}-${t.trimestre}"${t.completo ? '' : ' disabled'}>${t.trimestre}º Trimestre ${t.ano}${t.completo ? '' : ' (incompleto)'}</option>`
     ).join('');
+    const completo = trimestres.find(t => t.completo);
+    if (completo) {
+      const valor = `${completo.ano}-${completo.trimestre}`;
+      document.getElementById('exp-ic-trim-select').value = valor;
+      await expIcCarregarTrimestre(valor);
+    }
   } catch (_) {}
 }
 
