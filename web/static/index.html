@@ -369,6 +369,10 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       IRPJ / CSLL
     </div>
+    <div class="nav-item" data-page="upload-irpjcsll" data-protected="true" onclick="navigate('upload-irpjcsll')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Upload IRPJ/CSLL
+    </div>
     <div class="nav-item" data-page="usuarios" data-protected="true" onclick="navigate('usuarios')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Usuários
@@ -740,46 +744,13 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
   <div class="dash-scroll-wrap">
     <div style="padding:20px 28px;display:flex;flex-direction:column;gap:20px;">
 
-      <!-- Formulário de upload — sempre visível, é aqui que se processa cada mês -->
-      <div style="background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;">
-        <div class="section-label" style="margin-bottom:10px;">Processar novo mês</div>
-        <p style="font-size:12px;color:var(--gray400);margin:0 0 12px;">
-          Envie apenas os 3 arquivos novos deste mês. A base de cálculo, CSLL retida e juros são
-          reaproveitados automaticamente da competência já processada no módulo PIS/COFINS —
-          processe-a lá primeiro, se ainda não tiver feito.
-        </p>
-        <div style="display:grid;grid-template-columns:110px repeat(4,1fr) auto;gap:10px;align-items:end;">
-          <div class="form-group">
-            <label>Competência *</label>
-            <input type="text" id="ic-input-competencia" placeholder="04/2026" maxlength="7" oninput="formatCompetencia(this)">
-          </div>
-          <div class="form-group">
-            <label>Aplicação Financeira *</label>
-            <input type="file" id="ic-file-aplicacao" accept=".xlsx">
-          </div>
-          <div class="form-group">
-            <label>Variação Cambial Ativa *</label>
-            <input type="file" id="ic-file-variacao" accept=".xlsx">
-          </div>
-          <div class="form-group">
-            <label>IRRF *</label>
-            <input type="file" id="ic-file-irrf" accept=".xlsx">
-          </div>
-          <div class="form-group">
-            <label>Template <span style="font-weight:400;color:var(--gray400)">(opcional — gera Excel)</span></label>
-            <input type="file" id="ic-file-template" accept=".xlsx">
-          </div>
-          <button class="btn btn-primary" onclick="icProcessar()" id="ic-btn-processar">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            Processar
-          </button>
-        </div>
-        <div class="error-msg" id="ic-error-msg" style="margin-top:10px;"></div>
-      </div>
-
       <!-- Estado vazio — nenhum mês processado ainda neste módulo -->
-      <div id="ic-empty" style="background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;text-align:center;color:var(--gray400);font-size:13px;">
-        Nenhuma competência processada ainda neste módulo. Preencha o formulário acima para começar.
+      <div id="ic-empty" style="background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:32px;text-align:center;color:var(--gray400);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:14px;">
+        <span>Nenhuma competência processada ainda neste módulo.</span>
+        <button class="btn btn-primary" onclick="navigate('upload-irpjcsll')" style="width:auto;padding:9px 20px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Ir para Upload de Arquivos IRPJ/CSLL
+        </button>
       </div>
 
       <div id="ic-content" style="display:none;flex-direction:column;gap:20px;">
@@ -839,6 +810,54 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       </div>
 
       <div id="ic-alertas"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────── UPLOAD IRPJ/CSLL ─────────────── -->
+<div id="page-upload-irpjcsll" class="page">
+  <div class="page-header">
+    <h2>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Upload IRPJ/CSLL
+    </h2>
+    <p>Selecione os arquivos do mês</p>
+  </div>
+
+  <div class="upload-body">
+    <div class="upload-left">
+      <div class="upload-grid" id="ic-upload-grid"></div>
+
+      <div style="background:var(--white);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);font-size:11px;color:var(--gray600);">
+        <strong style="color:var(--gray800);">Instruções de uso</strong><br>
+        Clique em cada célula para selecionar o arquivo correspondente. Os 3 primeiros são obrigatórios; o <em>Template</em> é opcional (gera o Excel do trimestre quando os 3 meses já estiverem completos).
+        A base de cálculo, CSLL retida e juros são reaproveitados automaticamente da competência já processada no módulo PIS/COFINS — processe-a lá primeiro, se ainda não tiver feito.
+        Informe a <em>Competência</em> no painel à direita e clique em <strong>Processar</strong>.
+      </div>
+    </div>
+
+    <div class="upload-right">
+      <h3>Configuração</h3>
+
+      <div class="form-group">
+        <label>Competência (MM/AAAA) *</label>
+        <input type="text" id="ic-input-competencia" placeholder="04/2026" maxlength="7" oninput="formatCompetencia(this); icCheckReady();" />
+      </div>
+
+      <div>
+        <div class="section-label" style="margin-bottom:8px;">Status dos arquivos</div>
+        <div class="upload-status-box" id="ic-status-box"></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:auto;">
+        <div class="progress-bar" id="ic-progress-bar"><div class="progress-fill"></div></div>
+        <div class="error-msg" id="ic-error-msg"></div>
+        <button class="btn btn-primary" id="ic-btn-processar" onclick="icProcessar()" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Processar
+        </button>
+        <div id="ic-upload-status" style="font-size:11px;color:var(--gray400);text-align:center;"></div>
       </div>
     </div>
   </div>
@@ -960,6 +979,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateAuthUI();
   renderUploadGrid();
   updateStatusBox();
+  icRenderUploadGrid();
+  icUpdateStatusBox();
+  icCheckReady();
   // Carrega último resultado público (sem login)
   try {
     const res = await fetch('/ultimo-resultado');
@@ -1910,6 +1932,62 @@ function icRenderAlertas(alertas) {
     </div>`).join('');
 }
 
+// ═══ Upload IRPJ/CSLL — slots ═══
+const IC_FILE_SLOTS = [
+  { key: 'aplicacao_financeira', label: 'Aplicação Financeira',   icon: '💰', obrigatorio: true },
+  { key: 'variacao_cambial',     label: 'Variação Cambial Ativa', icon: '📈', obrigatorio: true },
+  { key: 'irrf',                 label: 'IRRF',                   icon: '📄', obrigatorio: true },
+  { key: 'template',             label: 'Template',               icon: '📋', obrigatorio: false },
+];
+const icUploadedFiles = {};
+
+function icRenderUploadGrid() {
+  const el = document.getElementById('ic-upload-grid');
+  if (!el) return;
+  el.innerHTML = IC_FILE_SLOTS.map(s => `
+    <div class="file-slot" id="ic-slot-${s.key}" onclick="document.getElementById('ic-file-${s.key}').click()">
+      <input type="file" id="ic-file-${s.key}" accept=".xlsx,.xls" onchange="icOnFileSelected('${s.key}',this)" onclick="event.stopPropagation()">
+      <div class="slot-icon">${s.icon}</div>
+      <div class="slot-label">${s.label}${s.obrigatorio ? ' *' : ''}</div>
+      <div class="slot-name" id="ic-slot-name-${s.key}">Selecionar</div>
+    </div>`).join('');
+}
+
+function icUpdateStatusBox() {
+  const el = document.getElementById('ic-status-box');
+  if (!el) return;
+  el.innerHTML = IC_FILE_SLOTS.map(s => {
+    const ok = !!icUploadedFiles[s.key];
+    return `<div class="status-item">
+      <span class="si-label">${s.label}</span>
+      <span class="${ok ? 'si-ok' : 'si-pend'}">${ok ? '✓' : (s.obrigatorio ? '—' : 'opcional')}</span>
+    </div>`;
+  }).join('');
+}
+
+function icOnFileSelected(key, input) {
+  const file = input.files[0];
+  if (!file) return;
+  icUploadedFiles[key] = file;
+  document.getElementById(`ic-slot-${key}`).classList.add('uploaded');
+  document.getElementById(`ic-slot-name-${key}`).textContent = file.name;
+  icUpdateStatusBox();
+  icCheckReady();
+}
+
+function icCheckReady() {
+  const allOk = IC_FILE_SLOTS.filter(s => s.obrigatorio).every(s => icUploadedFiles[s.key]);
+  const comp = document.getElementById('ic-input-competencia').value;
+  const compOk = /^\d{2}\/\d{4}$/.test(comp);
+  const btn = document.getElementById('ic-btn-processar');
+  if (btn) btn.disabled = !(allOk && compOk);
+  const miss = IC_FILE_SLOTS.filter(s => s.obrigatorio && !icUploadedFiles[s.key]).length;
+  const statusEl = document.getElementById('ic-upload-status');
+  if (statusEl) {
+    statusEl.textContent = miss > 0 ? `${miss} arquivo(s) pendente(s)` : compOk ? '✓ Pronto para processar' : 'Informe a competência';
+  }
+}
+
 async function icProcessar() {
   const btn = document.getElementById('ic-btn-processar');
   const errEl = document.getElementById('ic-error-msg');
@@ -1921,22 +1999,16 @@ async function icProcessar() {
     errEl.style.display = 'block';
     return;
   }
-  const fAplicacao = document.getElementById('ic-file-aplicacao').files[0];
-  const fVariacao  = document.getElementById('ic-file-variacao').files[0];
-  const fIrrf      = document.getElementById('ic-file-irrf').files[0];
-  const fTemplate  = document.getElementById('ic-file-template').files[0];
-  if (!fAplicacao || !fVariacao || !fIrrf) {
-    errEl.textContent = 'Selecione os 3 arquivos obrigatórios (Aplicação Financeira, Variação Cambial Ativa, IRRF).';
+  const faltando = IC_FILE_SLOTS.filter(s => s.obrigatorio && !icUploadedFiles[s.key]);
+  if (faltando.length) {
+    errEl.textContent = `Selecione os arquivos obrigatórios: ${faltando.map(s => s.label).join(', ')}.`;
     errEl.style.display = 'block';
     return;
   }
 
   const fd = new FormData();
   fd.append('competencia', competencia);
-  fd.append('aplicacao_financeira', fAplicacao);
-  fd.append('variacao_cambial', fVariacao);
-  fd.append('irrf', fIrrf);
-  if (fTemplate) fd.append('template', fTemplate);
+  IC_FILE_SLOTS.forEach(s => { if (icUploadedFiles[s.key]) fd.append(s.key, icUploadedFiles[s.key]); });
 
   btn.disabled = true;
   btn.textContent = 'Processando…';
@@ -1948,6 +2020,7 @@ async function icProcessar() {
     showToast(`✓ Competência ${competencia} processada`, 'ok', 4000);
     icState.sessionId = data.session_id;
     await icCarregarPeriodos();
+    navigate('irpjcsll');
   } catch (e) {
     errEl.textContent = e.message;
     errEl.style.display = 'block';
