@@ -355,7 +355,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     </div>
     <div class="nav-item" data-page="upload" data-protected="true" onclick="navigate('upload')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      Upload PIS/COFINS
+      Upload
     </div>
     <div class="nav-item disabled" data-page="consolidacao" data-protected="true" onclick="navigate('consolidacao')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -368,10 +368,6 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     <div class="nav-item" data-page="irpjcsll" data-protected="true" onclick="navigate('irpjcsll')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       IRPJ / CSLL
-    </div>
-    <div class="nav-item" data-page="upload-irpjcsll" data-protected="true" onclick="navigate('upload-irpjcsll')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      Upload IRPJ/CSLL
     </div>
     <div class="nav-item" data-page="exportar-irpjcsll" data-protected="true" onclick="navigate('exportar-irpjcsll')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -398,12 +394,17 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
   <div class="page-header">
     <h2>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      Upload PIS/COFINS
+      Upload
     </h2>
-    <p>Selecione os 8 arquivos da competência</p>
+    <p id="upload-subtitle">Selecione os 8 arquivos da competência</p>
   </div>
 
-  <div class="upload-body">
+  <div class="right-tabs" style="max-width:360px;">
+    <div class="rtab active" id="utab-pis" onclick="switchUploadTab('pis')">PIS/COFINS</div>
+    <div class="rtab" id="utab-irpj" onclick="switchUploadTab('irpj')">IRPJ/CSLL</div>
+  </div>
+
+  <div class="upload-body" id="upload-panel-pis">
     <!-- Slots -->
     <div class="upload-left">
       <div class="upload-grid" id="upload-grid"></div>
@@ -443,6 +444,43 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
           Processar Apuração
         </button>
         <div id="upload-status" style="font-size:11px;color:var(--gray400);text-align:center;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="upload-body" id="upload-panel-irpj" style="display:none;">
+    <div class="upload-left">
+      <div class="upload-grid" id="ic-upload-grid"></div>
+
+      <div style="background:var(--white);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);font-size:11px;color:var(--gray600);">
+        <strong style="color:var(--gray800);">Instruções de uso</strong><br>
+        Clique em cada célula para selecionar o arquivo correspondente. Os 3 primeiros são obrigatórios; o <em>Template</em> é opcional (gera o Excel do trimestre quando os 3 meses já estiverem completos).
+        A base de cálculo, CSLL retida e juros são reaproveitados automaticamente da competência já processada no upload de PIS/COFINS — processe-a lá primeiro, se ainda não tiver feito.
+        Informe a <em>Competência</em> no painel à direita e clique em <strong>Processar</strong>.
+      </div>
+    </div>
+
+    <div class="upload-right">
+      <h3>Configuração</h3>
+
+      <div class="form-group">
+        <label>Competência (MM/AAAA) *</label>
+        <input type="text" id="ic-input-competencia" placeholder="04/2026" maxlength="7" oninput="formatCompetencia(this); icCheckReady();" />
+      </div>
+
+      <div>
+        <div class="section-label" style="margin-bottom:8px;">Status dos arquivos</div>
+        <div class="upload-status-box" id="ic-status-box"></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:auto;">
+        <div class="progress-bar" id="ic-progress-bar"><div class="progress-fill"></div></div>
+        <div class="error-msg" id="ic-error-msg"></div>
+        <button class="btn btn-primary" id="ic-btn-processar" onclick="icProcessar()" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Processar
+        </button>
+        <div id="ic-upload-status" style="font-size:11px;color:var(--gray400);text-align:center;"></div>
       </div>
     </div>
   </div>
@@ -751,9 +789,9 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <!-- Estado vazio — nenhum mês processado ainda neste módulo -->
       <div id="ic-empty" style="background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:32px;text-align:center;color:var(--gray400);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:14px;">
         <span>Nenhuma competência processada ainda neste módulo.</span>
-        <button class="btn btn-primary" onclick="navigate('upload-irpjcsll')" style="width:auto;padding:9px 20px;">
+        <button class="btn btn-primary" onclick="navigate('upload'); switchUploadTab('irpj');" style="width:auto;padding:9px 20px;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Ir para Upload de Arquivos IRPJ/CSLL
+          Ir para Upload IRPJ/CSLL
         </button>
       </div>
 
@@ -814,54 +852,6 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       </div>
 
       <div id="ic-alertas"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ─────────────── UPLOAD IRPJ/CSLL ─────────────── -->
-<div id="page-upload-irpjcsll" class="page">
-  <div class="page-header">
-    <h2>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      Upload IRPJ/CSLL
-    </h2>
-    <p>Selecione os arquivos do mês</p>
-  </div>
-
-  <div class="upload-body">
-    <div class="upload-left">
-      <div class="upload-grid" id="ic-upload-grid"></div>
-
-      <div style="background:var(--white);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);font-size:11px;color:var(--gray600);">
-        <strong style="color:var(--gray800);">Instruções de uso</strong><br>
-        Clique em cada célula para selecionar o arquivo correspondente. Os 3 primeiros são obrigatórios; o <em>Template</em> é opcional (gera o Excel do trimestre quando os 3 meses já estiverem completos).
-        A base de cálculo, CSLL retida e juros são reaproveitados automaticamente da competência já processada no módulo PIS/COFINS — processe-a lá primeiro, se ainda não tiver feito.
-        Informe a <em>Competência</em> no painel à direita e clique em <strong>Processar</strong>.
-      </div>
-    </div>
-
-    <div class="upload-right">
-      <h3>Configuração</h3>
-
-      <div class="form-group">
-        <label>Competência (MM/AAAA) *</label>
-        <input type="text" id="ic-input-competencia" placeholder="04/2026" maxlength="7" oninput="formatCompetencia(this); icCheckReady();" />
-      </div>
-
-      <div>
-        <div class="section-label" style="margin-bottom:8px;">Status dos arquivos</div>
-        <div class="upload-status-box" id="ic-status-box"></div>
-      </div>
-
-      <div style="display:flex;flex-direction:column;gap:8px;margin-top:auto;">
-        <div class="progress-bar" id="ic-progress-bar"><div class="progress-fill"></div></div>
-        <div class="error-msg" id="ic-error-msg"></div>
-        <button class="btn btn-primary" id="ic-btn-processar" onclick="icProcessar()" disabled>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          Processar
-        </button>
-        <div id="ic-upload-status" style="font-size:11px;color:var(--gray400);text-align:center;"></div>
       </div>
     </div>
   </div>
@@ -1126,6 +1116,16 @@ function checkReady() {
   const miss = FILE_SLOTS.filter(s => !uploadedFiles[s.key]).length;
   document.getElementById('upload-status').textContent =
     miss > 0 ? `${miss} arquivo(s) pendente(s)` : compOk ? '✓ Pronto para processar' : 'Informe a competência';
+}
+
+function switchUploadTab(tab) {
+  document.getElementById('utab-pis').classList.toggle('active', tab === 'pis');
+  document.getElementById('utab-irpj').classList.toggle('active', tab === 'irpj');
+  document.getElementById('upload-panel-pis').style.display = tab === 'pis' ? 'grid' : 'none';
+  document.getElementById('upload-panel-irpj').style.display = tab === 'irpj' ? 'grid' : 'none';
+  document.getElementById('upload-subtitle').textContent = tab === 'pis'
+    ? 'Selecione os 8 arquivos da competência'
+    : 'Selecione os arquivos do mês (IRPJ/CSLL)';
 }
 
 function formatCompetencia(input) {
