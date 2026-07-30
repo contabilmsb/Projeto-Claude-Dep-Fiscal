@@ -365,6 +365,10 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exportar Excel
     </div>
+    <div class="nav-item" data-page="irpjcsll" data-protected="true" onclick="navigate('irpjcsll')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      IRPJ / CSLL
+    </div>
     <div class="nav-item" data-page="usuarios" data-protected="true" onclick="navigate('usuarios')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Usuários
@@ -710,6 +714,124 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
           <button class="btn" style="flex:0 0 80px;background:var(--gray100);color:var(--gray600);" onclick="cancelarEdicao()">Cancelar</button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────── IRPJ / CSLL ─────────────── -->
+<div id="page-irpjcsll" class="page">
+  <div class="page-header">
+    <h2>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      IRPJ / CSLL
+      <span class="comp-badge" id="ic-comp"></span>
+    </h2>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <p id="ic-subtitle" style="margin:0;">Lucro Presumido — apuração trimestral, base caixa</p>
+      <div class="period-selector" id="ic-period-row" style="display:none;">
+        <span class="period-label">Competência:</span>
+        <select class="period-select" id="ic-period-select" onchange="icTrocarPeriodo(this.value)">
+          <option value="">— selecione —</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="dash-scroll-wrap">
+    <div class="dash-empty" id="ic-empty">
+      <img src="/static/msb-logo.png" alt="MSB Medical System do Brasil" style="width:180px;margin-bottom:8px;opacity:.7;">
+      <h3>Módulo IRPJ / CSLL</h3>
+      <p>Processe a Aplicação Financeira, Variação Cambial Ativa e IRRF do mês para começar. A base de cálculo, CSLL retida e juros são reaproveitados automaticamente da competência já processada no PIS/COFINS.</p>
+    </div>
+
+    <div id="ic-content" style="display:none;padding:20px 28px;flex-direction:column;gap:20px;">
+
+      <div style="background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;">
+        <div class="section-label" style="margin-bottom:10px;">Processar novo mês</div>
+        <div style="display:grid;grid-template-columns:110px repeat(4,1fr) auto;gap:10px;align-items:end;">
+          <div class="form-group">
+            <label>Competência *</label>
+            <input type="text" id="ic-input-competencia" placeholder="04/2026" maxlength="7" oninput="formatCompetencia(this)">
+          </div>
+          <div class="form-group">
+            <label>Aplicação Financeira *</label>
+            <input type="file" id="ic-file-aplicacao" accept=".xlsx">
+          </div>
+          <div class="form-group">
+            <label>Variação Cambial Ativa *</label>
+            <input type="file" id="ic-file-variacao" accept=".xlsx">
+          </div>
+          <div class="form-group">
+            <label>IRRF *</label>
+            <input type="file" id="ic-file-irrf" accept=".xlsx">
+          </div>
+          <div class="form-group">
+            <label>Template <span style="font-weight:400;color:var(--gray400)">(opcional — gera Excel)</span></label>
+            <input type="file" id="ic-file-template" accept=".xlsx">
+          </div>
+          <button class="btn btn-primary" onclick="icProcessar()" id="ic-btn-processar">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            Processar
+          </button>
+        </div>
+        <div class="error-msg" id="ic-error-msg" style="margin-top:10px;"></div>
+      </div>
+
+      <div>
+        <div class="section-label" style="margin-bottom:10px;">Mês selecionado — <span id="ic-mes-label">—</span></div>
+        <div class="cards-grid" id="ic-cards-mes"></div>
+      </div>
+
+      <div id="ic-trimestre-empty" style="background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;font-size:13px;color:var(--gray600);display:none;"></div>
+
+      <div id="ic-trimestre-wrap" style="display:none;flex-direction:column;gap:20px;">
+        <div class="section-label">Apuração Trimestral — <span id="ic-trim-label"></span></div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3>Composição da Base (IRPJ)</h3>
+            <div class="chart-wrap"><canvas id="ic-chart-donut"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>Apurado · Deduções · A Pagar</h3>
+            <div class="chart-wrap"><canvas id="ic-chart-bar"></canvas></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div class="chart-card">
+            <h3>IRPJ</h3>
+            <table class="detail-table" id="ic-table-irpj"></table>
+          </div>
+          <div class="chart-card">
+            <h3>CSLL</h3>
+            <table class="detail-table" id="ic-table-csll"></table>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Parcelamento (SELIC nas parcelas 2ª e 3ª)</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+            <div>
+              <div class="section-label" style="margin-bottom:8px;">IRPJ — DARF 2089</div>
+              <table class="detail-table" id="ic-parcelas-irpj"></table>
+            </div>
+            <div>
+              <div class="section-label" style="margin-bottom:8px;">CSLL — DARF 2372</div>
+              <table class="detail-table" id="ic-parcelas-csll"></table>
+            </div>
+          </div>
+        </div>
+
+        <div id="ic-export-row" style="display:none;">
+          <button class="btn-dl" onclick="icExportar()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Baixar Excel do Trimestre
+          </button>
+        </div>
+      </div>
+
+      <div id="ic-alertas"></div>
     </div>
   </div>
 </div>
@@ -1185,6 +1307,7 @@ function navigate(page) {
   document.getElementById(`page-${page}`).classList.add('active');
   if (page === 'usuarios')    carregarUsuarios();
   if (page === 'consolidacao' || page === 'exportar') carregarSessoes();
+  if (page === 'irpjcsll')    icCarregarPeriodos();
 }
 
 // ═══ Seletor de Período ═══
@@ -1603,6 +1726,251 @@ function _showDiffToast(data) {
 // ═══ Formatação ═══
 function brl(v) {
   return 'R$ ' + Number(v||0).toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Módulo IRPJ / CSLL — filtro de competência independente do PIS/COFINS
+// ══════════════════════════════════════════════════════════════════
+const icState = { sessoes: [], sessionId: null, resultado: null, charts: {} };
+
+async function icCarregarPeriodos() {
+  try {
+    const res = await fetch('/irpj-csll/periodos', { headers: { 'X-Auth-Token': _getToken() } });
+    if (!res.ok) return;
+    icState.sessoes = await res.json();
+    icPreencherSelect();
+    if (icState.sessoes.length) {
+      const alvo = icState.sessionId || icState.sessoes[0].id;
+      await icTrocarPeriodo(alvo);
+    }
+  } catch(_) {}
+}
+
+function icPreencherSelect() {
+  const el = document.getElementById('ic-period-select');
+  const opts = icState.sessoes.map(s => {
+    const dt = s.created_at ? new Date(s.created_at).toLocaleDateString('pt-BR') : '';
+    return `<option value="${s.id}">${s.competencia}${dt ? ' · ' + dt : ''}</option>`;
+  }).join('');
+  el.innerHTML = '<option value="">— selecione —</option>' + opts;
+  if (icState.sessionId) el.value = icState.sessionId;
+  document.getElementById('ic-period-row').style.display = icState.sessoes.length ? 'flex' : 'none';
+  document.getElementById('ic-empty').style.display = icState.sessoes.length ? 'none' : 'flex';
+  document.getElementById('ic-content').style.display = icState.sessoes.length ? 'flex' : 'none';
+}
+
+async function icTrocarPeriodo(sessionId) {
+  if (!sessionId) return;
+  const sel = document.getElementById('ic-period-select');
+  if (sel) sel.value = sessionId;
+  try {
+    const res = await fetch(`/irpj-csll/sessao/${sessionId}`, { headers: { 'X-Auth-Token': _getToken() } });
+    if (!res.ok) { showToast('⚠ Período não encontrado', 'warn', 3000); return; }
+    const data = await res.json();
+    icState.sessionId = data.session_id || sessionId;
+    icState.resultado = data;
+    document.getElementById('ic-comp').textContent = data.competencia;
+    icRenderMes(data);
+    if (data.trimestre) icRenderTrimestre(data.trimestre);
+    else icRenderTrimestreVazio();
+    icRenderAlertas(data.alertas || []);
+  } catch(e) {
+    showToast('⚠ Erro ao carregar período: ' + e.message, 'warn');
+  }
+}
+
+function icRenderMes(data) {
+  const c = data.componente || {};
+  document.getElementById('ic-mes-label').textContent = data.competencia;
+  const cards = [
+    ['Base Revenda (reaproveitada do PIS/COFINS)', c.revenda_base],
+    ['Aplicação Financeira', c.aplicacao_financeira],
+    ['Variação Cambial Ativa', c.variacao_cambial],
+    ['IRRF s/ Aplicação Financeira', c.irrf_aplicacao],
+  ];
+  document.getElementById('ic-cards-mes').innerHTML = cards.map(([label, v]) => `
+    <div class="card">
+      <div class="card-label">${label}</div>
+      <div class="card-value">${brl(v)}</div>
+    </div>`).join('');
+}
+
+function icRenderTrimestreVazio() {
+  document.getElementById('ic-trimestre-wrap').style.display = 'none';
+  const el = document.getElementById('ic-trimestre-empty');
+  el.style.display = 'block';
+  el.textContent = 'Trimestre ainda incompleto — processe os 3 meses do trimestre-calendário para ver a apuração consolidada de IRPJ/CSLL.';
+}
+
+function icLinhasTabela(rows) {
+  return rows.map(([label, v], i) => {
+    const last = i === rows.length - 1;
+    return `<tr${last ? ' style="font-weight:700;background:#F0FDF4"' : ''}><td>${label}</td><td class="text-right">${brl(v)}</td></tr>`;
+  }).join('');
+}
+
+function icLinhasParcelas(parcelas) {
+  const header = `<tr><th>Parcela</th><th class="text-right">Principal</th><th class="text-right">Acréscimo</th><th class="text-right">Total</th></tr>`;
+  if (!parcelas || !parcelas.length) return header + '<tr><td colspan="4" style="color:var(--gray400)">Sem parcelas (valor devido zerado)</td></tr>';
+  return header + parcelas.map(p => `
+    <tr>
+      <td>${p.numero}ª parcela</td>
+      <td class="text-right">${brl(p.valor_principal)}</td>
+      <td class="text-right">${(p.percentual_acrescimo*100).toFixed(2)}%${p.selic_completa ? '' : ' ⚠'}</td>
+      <td class="text-right"><strong>${brl(p.valor_total)}</strong></td>
+    </tr>`).join('');
+}
+
+function icRenderTrimestre(t) {
+  document.getElementById('ic-trimestre-wrap').style.display = 'flex';
+  document.getElementById('ic-trimestre-empty').style.display = 'none';
+  document.getElementById('ic-trim-label').textContent = `${t.trimestre}º Trimestre ${t.ano} (${t.competencias.join(', ')})`;
+
+  document.getElementById('ic-table-irpj').innerHTML = icLinhasTabela([
+    ['Base Revenda', t.irpj.base_revenda],
+    ['Base Serviços', t.irpj.base_servicos],
+    ['Base Outras Receitas', t.irpj.base_outras_receitas],
+    ['Base de Cálculo', t.irpj.base_calculo],
+    ['IRPJ Apurado (15%)', t.irpj.valor_apurado],
+    ['Adicional (10%)', t.irpj.adicional],
+    ['IRPJ Devido', t.irpj.valor_devido],
+    ['(-) Deduções (IRRF cliente + aplicação)', t.irpj.deducoes],
+    ['IRPJ A RECOLHER', t.irpj.valor_a_pagar],
+  ]);
+  document.getElementById('ic-table-csll').innerHTML = icLinhasTabela([
+    ['Base Revenda', t.csll.base_revenda],
+    ['Base Serviços', t.csll.base_servicos],
+    ['Base Outras Receitas', t.csll.base_outras_receitas],
+    ['Base de Cálculo', t.csll.base_calculo],
+    ['CSLL Apurada (9%)', t.csll.valor_apurado],
+    ['(-) Deduções (CSLL Retida)', t.csll.deducoes],
+    ['CSLL A RECOLHER', t.csll.valor_a_pagar],
+  ]);
+
+  document.getElementById('ic-parcelas-irpj').innerHTML = icLinhasParcelas(t.parcelas_irpj);
+  document.getElementById('ic-parcelas-csll').innerHTML = icLinhasParcelas(t.parcelas_csll);
+
+  document.getElementById('ic-export-row').style.display =
+    (icState.resultado && icState.resultado.session_id) ? 'block' : 'none';
+
+  icRenderCharts(t);
+}
+
+function icRenderCharts(t) {
+  if (icState.charts.donut) icState.charts.donut.destroy();
+  icState.charts.donut = new Chart(document.getElementById('ic-chart-donut'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Base Revenda', 'Base Serviços', 'Base Outras Receitas'],
+      datasets: [{
+        data: [t.irpj.base_revenda, t.irpj.base_servicos, t.irpj.base_outras_receitas],
+        backgroundColor: ['#2563EB', '#7C3AED', '#F59E0B'], borderWidth: 2, borderColor: '#fff',
+      }],
+    },
+    options: { responsive:true, maintainAspectRatio:false, cutout:'65%',
+      plugins: { legend: { position:'bottom', labels:{ font:{size:10}, padding:6, boxWidth:10 } },
+        tooltip: { callbacks: { label: ctx => ` ${brl(ctx.parsed)}` } } } },
+  });
+
+  if (icState.charts.bar) icState.charts.bar.destroy();
+  icState.charts.bar = new Chart(document.getElementById('ic-chart-bar'), {
+    type: 'bar',
+    data: { labels: ['IRPJ', 'CSLL'],
+      datasets: [
+        { label: 'Devido/Apurado', data: [t.irpj.valor_devido, t.csll.valor_apurado], backgroundColor: '#BFDBFE' },
+        { label: 'Deduções',       data: [t.irpj.deducoes,     t.csll.deducoes],      backgroundColor: '#6EE7B7' },
+        { label: 'A Recolher',     data: [t.irpj.valor_a_pagar, t.csll.valor_a_pagar], backgroundColor: '#2563EB' },
+      ] },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{ labels:{ font:{size:10}, boxWidth:10, padding:8 } },
+        tooltip:{ callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${brl(ctx.parsed.y)}` } } },
+      scales: { y:{ ticks:{ callback: v => 'R$'+(v/1000).toFixed(0)+'k', font:{size:10} }, grid:{color:'#F1F5F9'} },
+        x:{ ticks:{ font:{size:11,weight:'600'} } } } },
+  });
+}
+
+function icRenderAlertas(alertas) {
+  const c = document.getElementById('ic-alertas');
+  if (!alertas || !alertas.length) { c.innerHTML = ''; return; }
+  c.innerHTML = alertas.map(a => `
+    <div class="alert-box warn">
+      <div class="alert-icon">⚠️</div>
+      <div>
+        <div class="alert-title">${a.tipo}</div>
+        <div class="alert-desc">${a.descricao}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function icProcessar() {
+  const btn = document.getElementById('ic-btn-processar');
+  const errEl = document.getElementById('ic-error-msg');
+  errEl.style.display = 'none';
+
+  const competencia = document.getElementById('ic-input-competencia').value;
+  if (!/^\d{2}\/\d{4}$/.test(competencia)) {
+    errEl.textContent = 'Informe a competência no formato MM/AAAA.';
+    errEl.style.display = 'block';
+    return;
+  }
+  const fAplicacao = document.getElementById('ic-file-aplicacao').files[0];
+  const fVariacao  = document.getElementById('ic-file-variacao').files[0];
+  const fIrrf      = document.getElementById('ic-file-irrf').files[0];
+  const fTemplate  = document.getElementById('ic-file-template').files[0];
+  if (!fAplicacao || !fVariacao || !fIrrf) {
+    errEl.textContent = 'Selecione os 3 arquivos obrigatórios (Aplicação Financeira, Variação Cambial Ativa, IRRF).';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('competencia', competencia);
+  fd.append('aplicacao_financeira', fAplicacao);
+  fd.append('variacao_cambial', fVariacao);
+  fd.append('irrf', fIrrf);
+  if (fTemplate) fd.append('template', fTemplate);
+
+  btn.disabled = true;
+  btn.textContent = 'Processando…';
+  try {
+    const res = await fetch('/irpj-csll/processar', { method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Erro no processamento');
+
+    showToast(`✓ Competência ${competencia} processada`, 'ok', 4000);
+    icState.sessionId = data.session_id;
+    await icCarregarPeriodos();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Processar';
+  }
+}
+
+async function icExportar() {
+  if (!icState.sessionId) return;
+  try {
+    const res = await fetch(`/irpj-csll/exportar/${icState.sessionId}`, { headers: { 'X-Auth-Token': _getToken() } });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      throw new Error(data?.detail || 'Nenhum Excel gerado para esta sessão.');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : 'apuracao_irpj_csll.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    showToast('⚠ ' + e.message, 'warn');
+  }
 }
 </script>
 </body>

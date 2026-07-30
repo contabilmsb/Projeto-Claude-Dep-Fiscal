@@ -17,6 +17,7 @@ import base64
 import hashlib
 import shutil
 import tempfile
+from dataclasses import asdict
 from pathlib import Path
 from datetime import datetime
 
@@ -31,6 +32,17 @@ from src.readers import load_all
 from src.calculator import calcular
 from src.validator import validar
 from src.writer import atualizar_template
+
+from src.irpj_csll import readers as irpj_readers
+from src.irpj_csll.calculator import (
+    calcular_mes as irpj_calcular_mes,
+    consolidar_trimestre as irpj_consolidar_trimestre,
+    trimestre_de as irpj_trimestre_de,
+    meses_do_trimestre as irpj_meses_do_trimestre,
+    ComponenteMes as IrpjComponenteMes,
+)
+from src.irpj_csll.validator import validar_trimestre_completo
+from src.irpj_csll.writer import atualizar_template as atualizar_template_irpj_csll
 
 app = FastAPI(title="Apuração PIS/COFINS")
 
@@ -621,6 +633,316 @@ async def exportar(session_id: str, request: Request):
         return FileResponse(
             path=str(path),
             filename=path.name,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Módulo IRPJ/CSLL — Lucro Presumido, apuração trimestral, base caixa
+#
+# Reaproveita da sessão PIS/COFINS da mesma competência: base_liquida,
+# csll_retida, irrf_retido e juros (ver plano em .claude/plans, aprovado com
+# o usuário). Cada mês é salvo isoladamente; ao completar os 3 meses de um
+# trimestre-calendário, a consolidação trimestral é calculada automaticamente.
+# ══════════════════════════════════════════════════════════════════════════════
+
+SESSIONS_IRPJ_CSLL_TABLE = "sessions_irpj_csll"
+_sessions_irpj_csll: dict[str, dict] = {}
+
+
+def _irpj_session_get_by_competencia(competencia: str) -> dict | None:
+    if _use_supabase():
+        sb = _get_supabase()
+        rows = sb.table(SESSIONS_IRPJ_CSLL_TABLE).select("*") \
+            .eq("competencia", competencia) \
+            .order("created_at", desc=True).limit(1).execute()
+        return rows.data[0] if rows.data else None
+    for sid, s in _sessions_irpj_csll.items():
+        if s["resultado"].get("competencia") == competencia:
+            return {**s, "id": sid}
+    return None
+
+
+def _irpj_session_delete(session_id: str):
+    if _use_supabase():
+        sb = _get_supabase()
+        try:
+            old = sb.table(SESSIONS_IRPJ_CSLL_TABLE).select("storage_path").eq("id", session_id).execute()
+            if old.data and old.data[0].get("storage_path"):
+                sb.storage.from_(SUPABASE_BUCKET).remove([old.data[0]["storage_path"]])
+        except Exception:
+            pass
+        sb.table(SESSIONS_IRPJ_CSLL_TABLE).delete().eq("id", session_id).execute()
+    else:
+        _sessions_irpj_csll.pop(session_id, None)
+
+
+def _irpj_session_save(session_id: str, output_path: Path | None, resultado: dict):
+    if _use_supabase():
+        sb = _get_supabase()
+        storage_path = None
+        filename = None
+        if output_path:
+            filename = output_path.name
+            storage_path = f"irpj_csll/{session_id}/{filename}"
+            with open(output_path, "rb") as f:
+                sb.storage.from_(SUPABASE_BUCKET).upload(
+                    storage_path, f.read(),
+                    {"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+                )
+        sb.table(SESSIONS_IRPJ_CSLL_TABLE).insert({
+            "id": session_id,
+            "competencia": resultado["competencia"],
+            "resultado": resultado,
+            "storage_path": storage_path,
+            "output_filename": filename,
+        }).execute()
+    else:
+        _sessions_irpj_csll[session_id] = {"output_path": output_path, "resultado": resultado}
+
+
+def _irpj_session_get(session_id: str) -> dict | None:
+    if _use_supabase():
+        sb = _get_supabase()
+        rows = sb.table(SESSIONS_IRPJ_CSLL_TABLE).select("*").eq("id", session_id).execute()
+        return rows.data[0] if rows.data else None
+    return _sessions_irpj_csll.get(session_id)
+
+
+def _irpj_build_resumo_list() -> list:
+    def _resumo(res: dict, sid: str, comp, created) -> dict:
+        c = res.get("componente") or {}
+        return {
+            "id": sid,
+            "competencia": comp,
+            "created_at": created,
+            "revenda_base": c.get("revenda_base") or 0,
+            "aplicacao_financeira": c.get("aplicacao_financeira") or 0,
+            "variacao_cambial": c.get("variacao_cambial") or 0,
+        }
+
+    if _use_supabase():
+        sb = _get_supabase()
+        rows = sb.table(SESSIONS_IRPJ_CSLL_TABLE) \
+            .select("id,competencia,created_at,resultado") \
+            .order("created_at", desc=True).execute()
+        return [
+            _resumo(r.get("resultado") or {}, r["id"], r["competencia"], r["created_at"])
+            for r in (rows.data or [])
+        ]
+    return [
+        _resumo(s["resultado"], sid, s["resultado"].get("competencia"), None)
+        for sid, s in _sessions_irpj_csll.items()
+    ]
+
+
+def _irpj_serializar_trimestre(resultado) -> dict:
+    return {
+        "ano": resultado.ano,
+        "trimestre": resultado.trimestre,
+        "competencias": resultado.competencias,
+        "irpj": asdict(resultado.irpj),
+        "csll": asdict(resultado.csll),
+        "parcelas_irpj": [asdict(p) for p in resultado.parcelas_irpj],
+        "parcelas_csll": [asdict(p) for p in resultado.parcelas_csll],
+    }
+
+
+def _irpj_tentar_consolidar_trimestre(ano: int, trimestre: int) -> dict | None:
+    """Consolida o trimestre se as sessões dos 3 meses já existirem."""
+    competencias = [f"{m:02d}/{ano}" for m in irpj_meses_do_trimestre(trimestre)]
+    sessoes = [_irpj_session_get_by_competencia(c) for c in competencias]
+    if not all(sessoes):
+        return None
+    componentes = [IrpjComponenteMes(**s["resultado"]["componente"]) for s in sessoes]
+    resultado = irpj_consolidar_trimestre(ano, trimestre, componentes)
+    return _irpj_serializar_trimestre(resultado)
+
+
+@app.post("/irpj-csll/processar", dependencies=[Depends(require_auth)])
+async def irpj_csll_processar(
+    competencia: str = Form(...),
+    aplicacao_financeira: UploadFile = File(...),
+    variacao_cambial: UploadFile = File(...),
+    irrf: UploadFile = File(...),
+    template: UploadFile | None = File(default=None),
+):
+    pis_cofins_session = _session_get_by_competencia(competencia)
+    if not pis_cofins_session:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"A competência {competencia} ainda não foi processada no módulo "
+                "PIS/COFINS. Processe-a primeiro naquele módulo — este cálculo "
+                "reaproveita a base de cálculo, CSLL retida e juros de lá."
+            ),
+        )
+    totais_pc = (pis_cofins_session.get("resultado") or {}).get("totais", {})
+
+    mes, ano = _competencia_to_month_year(competencia)
+    session_id = str(uuid.uuid4())
+    tmp_dir = Path(tempfile.mkdtemp(prefix=f"irpjcsll_{session_id}_"))
+
+    try:
+        file_map = {
+            "aplicacao_financeira": aplicacao_financeira,
+            "variacao_cambial": variacao_cambial,
+            "irrf": irrf,
+        }
+        paths = {}
+        for key, upload in file_map.items():
+            dest = tmp_dir / upload.filename
+            dest.write_bytes(await upload.read())
+            paths[key] = dest
+
+        valor_aplicacao = irpj_readers.load_aplicacao_financeira(paths["aplicacao_financeira"], mes, ano)
+        valor_variacao = irpj_readers.load_variacao_cambial(paths["variacao_cambial"], mes, ano)
+        valor_irrf_aplicacao = irpj_readers.load_irrf_aplicacao(paths["irrf"], mes, ano)
+
+        componente = irpj_calcular_mes(
+            competencia,
+            revenda_base=totais_pc.get("base_liquida", 0.0),
+            aplicacao_financeira=valor_aplicacao,
+            variacao_cambial=valor_variacao,
+            juros_recebidos=totais_pc.get("juros", 0.0),
+            irrf_cliente=totais_pc.get("irrf_retido", 0.0),
+            irrf_aplicacao=valor_irrf_aplicacao,
+            csll_retida=totais_pc.get("csll_retida", 0.0),
+        )
+
+        resp = {
+            "competencia": competencia,
+            "session_id": session_id,
+            "componente": asdict(componente),
+        }
+
+        trimestre = irpj_trimestre_de(mes)
+        resp["trimestre_numero"] = trimestre
+        resp["ano"] = ano
+        resp["alertas"] = [
+            a.__dict__ for a in
+            validar_trimestre_completo(
+                [f"{m:02d}/{ano}" for m in irpj_meses_do_trimestre(trimestre)
+                 if _irpj_session_get_by_competencia(f"{m:02d}/{ano}") or f"{m:02d}/{ano}" == competencia],
+                trimestre, ano,
+            )
+        ]
+
+        # Upsert: substitui sessão existente da mesma competência e salva já
+        # (sem Excel ainda) para que a checagem de trimestre completo abaixo
+        # enxergue este mês junto com os outros dois.
+        existente = _irpj_session_get_by_competencia(competencia)
+        if existente:
+            _irpj_session_delete(existente.get("id"))
+        _irpj_session_save(session_id, None, resp)
+
+        trimestre_consolidado = _irpj_tentar_consolidar_trimestre(ano, trimestre)
+        if trimestre_consolidado:
+            resp["trimestre"] = trimestre_consolidado
+            parcelas = trimestre_consolidado["parcelas_irpj"] + trimestre_consolidado["parcelas_csll"]
+            incompletas = [str(p["numero"]) for p in parcelas if not p["selic_completa"]]
+            if incompletas:
+                resp["alertas"].append({
+                    "tipo": "SELIC_INDISPONIVEL",
+                    "descricao": (
+                        f"Não foi possível obter a taxa SELIC de todas as parcelas "
+                        f"({', '.join(incompletas)}) via API do Banco Central. "
+                        "Informe a taxa manualmente para maior precisão."
+                    ),
+                })
+
+            if template is not None:
+                template_dest = tmp_dir / template.filename
+                template_dest.write_bytes(await template.read())
+
+                competencias_trimestre = [f"{m:02d}/{ano}" for m in irpj_meses_do_trimestre(trimestre)]
+                componentes = [
+                    IrpjComponenteMes(**_irpj_session_get_by_competencia(c)["resultado"]["componente"])
+                    for c in competencias_trimestre
+                ]
+                resultado_trimestre_obj = irpj_consolidar_trimestre(ano, trimestre, componentes)
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                out_dir = Path(tempfile.gettempdir()) if _use_supabase() else OUTPUT_DIR
+                safe_name = f"Apuracao_IRPJ_CSLL_{trimestre}T{ano}_{ts}.xlsx"
+                try:
+                    output_path = atualizar_template_irpj_csll(
+                        template_path=template_dest,
+                        output_path=out_dir / safe_name,
+                        resultado=resultado_trimestre_obj,
+                        meses=componentes,
+                    )
+                    # Re-salva esta sessão (a do último mês enviado) já com o Excel anexado
+                    _irpj_session_delete(session_id)
+                    _irpj_session_save(session_id, output_path, resp)
+                except ValueError as e:
+                    resp["alertas"].append({"tipo": "TEMPLATE", "descricao": str(e)})
+        else:
+            resp["trimestre"] = None
+
+        return resp
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@app.get("/irpj-csll/periodos")
+async def irpj_csll_periodos():
+    """Lista competências (meses) processadas neste módulo — público, somente leitura."""
+    return _irpj_build_resumo_list()
+
+
+@app.get("/irpj-csll/sessao/{session_id}", dependencies=[Depends(require_auth)])
+async def irpj_csll_get_sessao(session_id: str):
+    session = _irpj_session_get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+    resultado = session.get("resultado") or session.get("resultado", {})
+    resultado["session_id"] = session.get("id", session_id)
+    return resultado
+
+
+@app.get("/irpj-csll/trimestre/{ano}/{numero}", dependencies=[Depends(require_auth)])
+async def irpj_csll_get_trimestre(ano: int, numero: int):
+    resultado = _irpj_tentar_consolidar_trimestre(ano, numero)
+    if not resultado:
+        competencias = [f"{m:02d}/{ano}" for m in irpj_meses_do_trimestre(numero)]
+        faltantes = [c for c in competencias if not _irpj_session_get_by_competencia(c)]
+        raise HTTPException(
+            status_code=404,
+            detail=f"Trimestre incompleto — faltam as competências: {', '.join(faltantes)}",
+        )
+    return resultado
+
+
+@app.get("/irpj-csll/exportar/{session_id}", dependencies=[Depends(require_auth)])
+async def irpj_csll_exportar(session_id: str):
+    session = _irpj_session_get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+
+    if _use_supabase():
+        sb = _get_supabase()
+        storage_path = session.get("storage_path")
+        filename = session.get("output_filename", "apuracao_irpj_csll.xlsx")
+        if not storage_path:
+            raise HTTPException(status_code=404, detail="Nenhum Excel gerado para esta sessão (envie o template para gerar).")
+        file_bytes = sb.storage.from_(SUPABASE_BUCKET).download(storage_path)
+        return StreamingResponse(
+            iter([file_bytes]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    else:
+        path = session.get("output_path")
+        if not path or not Path(path).exists():
+            raise HTTPException(status_code=404, detail="Nenhum Excel gerado para esta sessão (envie o template para gerar).")
+        return FileResponse(
+            path=str(path),
+            filename=Path(path).name,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
