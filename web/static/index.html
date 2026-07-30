@@ -830,7 +830,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         </div>
 
         <div class="chart-card">
-          <h3>Parcelamento (SELIC nas parcelas 2ª e 3ª)</h3>
+          <h3>Parcelamento</h3>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
             <div>
               <div class="section-label" style="margin-bottom:8px;">IRPJ — DARF 2089</div>
@@ -1927,14 +1927,12 @@ function icLinhasTabela(rows) {
 }
 
 function icLinhasParcelas(parcelas) {
-  const header = `<tr><th>Parcela</th><th class="text-right">Principal</th><th class="text-right">Acréscimo</th><th class="text-right">Total</th></tr>`;
-  if (!parcelas || !parcelas.length) return header + '<tr><td colspan="4" style="color:var(--gray400)">Sem parcelas (valor devido zerado)</td></tr>';
+  const header = `<tr><th>Parcela</th><th class="text-right">Valor</th></tr>`;
+  if (!parcelas || !parcelas.length) return header + '<tr><td colspan="2" style="color:var(--gray400)">Sem parcelas (valor devido zerado)</td></tr>';
   return header + parcelas.map(p => `
     <tr>
       <td>${p.numero}ª parcela</td>
-      <td class="text-right">${brl(p.valor_principal)}</td>
-      <td class="text-right">${(p.percentual_acrescimo*100).toFixed(2)}%${p.selic_completa ? '' : ' ⚠'}</td>
-      <td class="text-right"><strong>${brl(p.valor_total)}</strong></td>
+      <td class="text-right"><strong>${brl(p.valor)}</strong></td>
     </tr>`).join('');
 }
 
@@ -2235,7 +2233,7 @@ async function expIcCarregarTrimestre(valor) {
 
     const mkParcelas = parcelas => !parcelas.length
       ? '<div class="exp-row"><span>—</span><span>Sem parcelas (valor zerado)</span></div>'
-      : parcelas.map(p => `<div class="exp-row${p.numero === parcelas.length ? ' total' : ''}"><span>${p.numero}ª parcela${p.selic_completa ? '' : ' ⚠'}</span><span>${brl(p.valor_total)}</span></div>`).join('');
+      : parcelas.map(p => `<div class="exp-row${p.numero === parcelas.length ? ' total' : ''}"><span>${p.numero}ª parcela</span><span>${brl(p.valor)}</span></div>`).join('');
     document.getElementById('exp-ic-parc-irpj-rows').innerHTML = mkParcelas(t.parcelas_irpj);
     document.getElementById('exp-ic-parc-csll-rows').innerHTML = mkParcelas(t.parcelas_csll);
     document.getElementById('exp-ic-filename').textContent = `Apuração IRPJ CSLL ${numero}T${ano}.xlsx`;

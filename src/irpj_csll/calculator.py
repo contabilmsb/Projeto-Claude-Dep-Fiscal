@@ -5,7 +5,8 @@ trimestral, base caixa.
 Bases legais relevantes:
   - Lei 9.249/1995, art. 15 e art. 20: percentuais de presunção
   - Lei 9.430/1996, art. 25, II: demais receitas/ganhos incluídos a 100% na base
-  - Lei 9.430/1996, art. 3º §1º / art. 5º: adicional de IRPJ e parcelamento com SELIC
+  - Lei 9.430/1996, art. 3º §1º: adicional de IRPJ
+  - Lei 9.430/1996, art. 5º: parcelamento do IRPJ/CSLL em até 3 quotas mensais
   - IN RFB 1.022/2010, art. 55, I: aproveitamento do IRRF sobre aplicações
     financeiras como dedução do IRPJ devido
 
@@ -17,7 +18,6 @@ ajuste intencional da contabilidade sobre os percentuais padrão da lei
 from dataclasses import dataclass, field
 
 from . import config as cfg
-from . import selic as selic_mod
 
 
 @dataclass
@@ -52,11 +52,7 @@ class ApuracaoTributo:
 @dataclass
 class Parcela:
     numero: int
-    valor_principal: float
-    percentual_acrescimo: float
-    valor_acrescimo: float
-    valor_total: float
-    selic_completa: bool = True
+    valor: float
 
 
 @dataclass
@@ -97,8 +93,7 @@ def calcular_mes(competencia: str, *, revenda_base: float, aplicacao_financeira:
     )
 
 
-def _montar_parcelas(valor_devido: float, ano_fim_trimestre: int, mes_fim_trimestre: int,
-                      selic_overrides: dict | None = None) -> list[Parcela]:
+def _montar_parcelas(valor_devido: float) -> list[Parcela]:
     if valor_devido <= 0:
         return []
 
@@ -106,24 +101,11 @@ def _montar_parcelas(valor_devido: float, ano_fim_trimestre: int, mes_fim_trimes
     while n > 1 and valor_devido / n < cfg.VALOR_MINIMO_PARCELA:
         n -= 1
 
-    principal = valor_devido / n
-    parcelas = []
-    for i in range(1, n + 1):
-        pct, completo = selic_mod.acrescimo_parcela(i, ano_fim_trimestre, mes_fim_trimestre, selic_overrides)
-        acrescimo = principal * pct
-        parcelas.append(Parcela(
-            numero=i,
-            valor_principal=round(principal, 2),
-            percentual_acrescimo=pct,
-            valor_acrescimo=round(acrescimo, 2),
-            valor_total=round(principal + acrescimo, 2),
-            selic_completa=completo,
-        ))
-    return parcelas
+    valor = round(valor_devido / n, 2)
+    return [Parcela(numero=i, valor=valor) for i in range(1, n + 1)]
 
 
-def consolidar_trimestre(ano: int, trimestre: int, meses: list[ComponenteMes],
-                          selic_overrides: dict | None = None) -> ResultadoTrimestre:
+def consolidar_trimestre(ano: int, trimestre: int, meses: list[ComponenteMes]) -> ResultadoTrimestre:
     """
     Consolida os 3 meses de um trimestre-calendário e apura IRPJ e CSLL.
 
@@ -192,9 +174,8 @@ def consolidar_trimestre(ano: int, trimestre: int, meses: list[ComponenteMes],
         base_outras_receitas=base_csll_outras,
     )
 
-    mes_fim = meses_do_trimestre(trimestre)[-1]
-    parcelas_irpj = _montar_parcelas(irpj_a_pagar, ano, mes_fim, selic_overrides)
-    parcelas_csll = _montar_parcelas(csll_a_pagar, ano, mes_fim, selic_overrides)
+    parcelas_irpj = _montar_parcelas(irpj_a_pagar)
+    parcelas_csll = _montar_parcelas(csll_a_pagar)
 
     return ResultadoTrimestre(
         ano=ano,

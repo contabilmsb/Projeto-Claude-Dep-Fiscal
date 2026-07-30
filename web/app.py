@@ -839,17 +839,6 @@ async def irpj_csll_processar(
         trimestre_consolidado = _irpj_tentar_consolidar_trimestre(ano, trimestre)
         if trimestre_consolidado:
             resp["trimestre"] = trimestre_consolidado
-            parcelas = trimestre_consolidado["parcelas_irpj"] + trimestre_consolidado["parcelas_csll"]
-            incompletas = [str(p["numero"]) for p in parcelas if not p["selic_completa"]]
-            if incompletas:
-                resp["alertas"].append({
-                    "tipo": "SELIC_INDISPONIVEL",
-                    "descricao": (
-                        f"Não foi possível obter a taxa SELIC de todas as parcelas "
-                        f"({', '.join(incompletas)}) via API do Banco Central. "
-                        "Informe a taxa manualmente para maior precisão."
-                    ),
-                })
 
             if template is not None:
                 template_dest = tmp_dir / template.filename

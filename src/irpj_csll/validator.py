@@ -26,18 +26,3 @@ def validar_trimestre_completo(competencias_presentes: list[str], trimestre: int
             f"o {trimestre}º trimestre de {ano}."
         ),
     )]
-
-
-def validar_selic_incompleta(parcelas: list) -> list[Alerta]:
-    """Sinaliza parcelas cuja taxa SELIC não pôde ser obtida integralmente via API do BCB."""
-    incompletas = [p for p in parcelas if not p.selic_completa]
-    if not incompletas:
-        return []
-    numeros = ", ".join(str(p.numero) for p in incompletas)
-    return [Alerta(
-        tipo="SELIC_INDISPONIVEL",
-        descricao=(
-            f"Não foi possível obter a taxa SELIC de todas as parcelas ({numeros}) "
-            "via API do Banco Central. Informe a taxa manualmente para maior precisão."
-        ),
-    )]
