@@ -895,6 +895,34 @@ async def irpj_csll_periodos():
     return _irpj_build_resumo_list()
 
 
+@app.get("/irpj-csll/trimestres")
+async def irpj_csll_trimestres():
+    """Lista trimestres com base nas competências processadas, indicando quais estão completos."""
+    grupos: dict[tuple[int, int], set] = {}
+    for r in _irpj_build_resumo_list():
+        comp = r.get("competencia")
+        if not comp:
+            continue
+        try:
+            mes, ano = _competencia_to_month_year(comp)
+        except Exception:
+            continue
+        chave = (ano, irpj_trimestre_de(mes))
+        grupos.setdefault(chave, set()).add(comp)
+
+    resultado = []
+    for (ano, trimestre), competencias in grupos.items():
+        esperadas = {f"{m:02d}/{ano}" for m in irpj_meses_do_trimestre(trimestre)}
+        resultado.append({
+            "ano": ano,
+            "trimestre": trimestre,
+            "competencias": sorted(competencias),
+            "completo": esperadas.issubset(competencias),
+        })
+    resultado.sort(key=lambda r: (r["ano"], r["trimestre"]), reverse=True)
+    return resultado
+
+
 @app.get("/irpj-csll/sessao/{session_id}", dependencies=[Depends(require_auth)])
 async def irpj_csll_get_sessao(session_id: str):
     session = _irpj_session_get(session_id)
@@ -945,6 +973,50 @@ async def irpj_csll_exportar(session_id: str):
             filename=Path(path).name,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+
+
+@app.post("/irpj-csll/exportar-trimestre", dependencies=[Depends(require_auth)])
+async def irpj_csll_exportar_trimestre(
+    ano: int = Form(...),
+    numero: int = Form(...),
+    template: UploadFile = File(...),
+):
+    """Gera e baixa o Excel de um trimestre sob demanda, independente de qual
+    sessão de mês foi processada por último — usado pela tela de exportação."""
+    competencias = [f"{m:02d}/{ano}" for m in irpj_meses_do_trimestre(numero)]
+    sessoes = [_irpj_session_get_by_competencia(c) for c in competencias]
+    if not all(sessoes):
+        faltantes = [c for c, s in zip(competencias, sessoes) if not s]
+        raise HTTPException(
+            status_code=404,
+            detail=f"Trimestre incompleto — faltam as competências: {', '.join(faltantes)}",
+        )
+
+    componentes = [IrpjComponenteMes(**s["resultado"]["componente"]) for s in sessoes]
+    resultado_trimestre = irpj_consolidar_trimestre(ano, numero, componentes)
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="irpjcsll_export_"))
+    try:
+        template_dest = tmp_dir / template.filename
+        template_dest.write_bytes(await template.read())
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = atualizar_template_irpj_csll(
+            template_path=template_dest,
+            output_path=tmp_dir / f"Apuracao_IRPJ_CSLL_{numero}T{ano}_{ts}.xlsx",
+            resultado=resultado_trimestre,
+            meses=componentes,
+        )
+        data = output_path.read_bytes()
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    return StreamingResponse(
+        iter([data]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{output_path.name}"'},
+    )
 
 
 # ── Helpers internos ──────────────────────────────────────────────────────────

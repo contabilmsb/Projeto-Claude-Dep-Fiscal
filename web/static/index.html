@@ -373,6 +373,10 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       Upload IRPJ/CSLL
     </div>
+    <div class="nav-item" data-page="exportar-irpjcsll" data-protected="true" onclick="navigate('exportar-irpjcsll')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exportar Excel - IRPJ/CSLL
+    </div>
     <div class="nav-item" data-page="usuarios" data-protected="true" onclick="navigate('usuarios')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Usuários
@@ -863,6 +867,88 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
   </div>
 </div>
 
+<!-- ─────────────── EXPORTAR IRPJ/CSLL ─────────────── -->
+<div id="page-exportar-irpjcsll" class="page">
+  <div class="page-header">
+    <h2>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exportar Excel - IRPJ/CSLL
+    </h2>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="period-selector">
+        <span class="period-label">Ver por:</span>
+        <select class="period-select" id="exp-ic-modo-select" onchange="expIcMudarModo(this.value)">
+          <option value="mes">Mês</option>
+          <option value="trimestre">Trimestre</option>
+        </select>
+      </div>
+      <div class="period-selector" id="exp-ic-mes-row">
+        <span class="period-label">Competência:</span>
+        <select class="period-select" id="exp-ic-mes-select" onchange="expIcCarregarMes(this.value)">
+          <option value="">— selecione —</option>
+        </select>
+      </div>
+      <div class="period-selector" id="exp-ic-trim-row" style="display:none;">
+        <span class="period-label">Trimestre:</span>
+        <select class="period-select" id="exp-ic-trim-select" onchange="expIcCarregarTrimestre(this.value)">
+          <option value="">— selecione —</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="export-body" id="exp-ic-mes-body">
+    <div class="export-left">
+      <div class="exp-summary-card">
+        <h4>Componentes do Mês — <span id="exp-ic-mes-comp">—</span></h4>
+        <div id="exp-ic-mes-rows"></div>
+      </div>
+    </div>
+    <div class="export-right">
+      <div class="export-icon">📅</div>
+      <h3>Visão Mensal</h3>
+      <p>A exportação em Excel é feita por <strong>trimestre</strong> (regime de apuração do IRPJ/CSLL no Lucro Presumido). Troque para "Trimestre" no filtro acima para gerar o arquivo.</p>
+    </div>
+  </div>
+
+  <div class="export-body" id="exp-ic-trim-body" style="display:none;">
+    <div class="export-left">
+      <div class="exp-summary-card">
+        <h4>Resumo — IRPJ</h4>
+        <div id="exp-ic-irpj-rows"></div>
+      </div>
+      <div class="exp-summary-card">
+        <h4>Resumo — CSLL</h4>
+        <div id="exp-ic-csll-rows"></div>
+      </div>
+      <div class="exp-summary-card">
+        <h4>Parcelas — IRPJ (DARF 2089)</h4>
+        <div id="exp-ic-parc-irpj-rows"></div>
+      </div>
+      <div class="exp-summary-card">
+        <h4>Parcelas — CSLL (DARF 2372)</h4>
+        <div id="exp-ic-parc-csll-rows"></div>
+      </div>
+    </div>
+
+    <div class="export-right">
+      <div class="export-icon">📊</div>
+      <h3>Planilha Pronta</h3>
+      <p>Preenche as abas <strong>IRPJ</strong> e <strong>CSLL</strong> do template no layout padrão da contabilidade.</p>
+      <div class="form-group" style="text-align:left;margin-bottom:12px;">
+        <label>Template (obrigatório) *</label>
+        <input type="file" id="exp-ic-template" accept=".xlsx">
+      </div>
+      <div class="export-filename" id="exp-ic-filename">—</div>
+      <div class="error-msg" id="exp-ic-error" style="display:none;"></div>
+      <button class="btn-dl" onclick="expIcBaixarExcel()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar Excel
+      </button>
+    </div>
+  </div>
+</div>
+
 </main>
 <div id="toast"></div>
 <script>
@@ -1338,6 +1424,7 @@ function navigate(page) {
   if (page === 'usuarios')    carregarUsuarios();
   if (page === 'consolidacao' || page === 'exportar') carregarSessoes();
   if (page === 'irpjcsll')    icCarregarPeriodos();
+  if (page === 'exportar-irpjcsll') expIcInit();
 }
 
 // ═══ Seletor de Período ═══
@@ -2051,6 +2138,144 @@ async function icExportar() {
     URL.revokeObjectURL(url);
   } catch (e) {
     showToast('⚠ ' + e.message, 'warn');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Exportar Excel - IRPJ/CSLL — filtro por mês ou por trimestre
+// ══════════════════════════════════════════════════════════════════
+const expIcState = { modo: 'mes', trimestreAtual: null };
+
+function _expIcRows(rows) {
+  return rows.map(r => `<div class="exp-row ${r.cls || ''}"><span>${r.label}</span><span>${brl(r.v)}</span></div>`).join('');
+}
+
+async function expIcInit() {
+  try {
+    const resMeses = await fetch('/irpj-csll/periodos', { headers: { 'X-Auth-Token': _getToken() } });
+    const meses = resMeses.ok ? await resMeses.json() : [];
+    document.getElementById('exp-ic-mes-select').innerHTML = '<option value="">— selecione —</option>' + meses.map(s => {
+      const dt = s.created_at ? new Date(s.created_at).toLocaleDateString('pt-BR') : '';
+      return `<option value="${s.id}">${s.competencia}${dt ? ' · ' + dt : ''}</option>`;
+    }).join('');
+  } catch (_) {}
+
+  try {
+    const resTrim = await fetch('/irpj-csll/trimestres', { headers: { 'X-Auth-Token': _getToken() } });
+    const trimestres = resTrim.ok ? await resTrim.json() : [];
+    document.getElementById('exp-ic-trim-select').innerHTML = '<option value="">— selecione —</option>' + trimestres.map(t =>
+      `<option value="${t.ano}-${t.trimestre}"${t.completo ? '' : ' disabled'}>${t.trimestre}º Trimestre ${t.ano}${t.completo ? '' : ' (incompleto)'}</option>`
+    ).join('');
+  } catch (_) {}
+}
+
+function expIcMudarModo(modo) {
+  expIcState.modo = modo;
+  document.getElementById('exp-ic-mes-row').style.display = modo === 'mes' ? 'flex' : 'none';
+  document.getElementById('exp-ic-trim-row').style.display = modo === 'trimestre' ? 'flex' : 'none';
+  document.getElementById('exp-ic-mes-body').style.display = modo === 'mes' ? 'flex' : 'none';
+  document.getElementById('exp-ic-trim-body').style.display = modo === 'trimestre' ? 'flex' : 'none';
+}
+
+async function expIcCarregarMes(sessionId) {
+  if (!sessionId) return;
+  try {
+    const res = await fetch(`/irpj-csll/sessao/${sessionId}`, { headers: { 'X-Auth-Token': _getToken() } });
+    if (!res.ok) { showToast('⚠ Período não encontrado', 'warn', 3000); return; }
+    const data = await res.json();
+    const c = data.componente || {};
+    document.getElementById('exp-ic-mes-comp').textContent = data.competencia;
+    document.getElementById('exp-ic-mes-rows').innerHTML = _expIcRows([
+      { label: 'Base Revenda (reaproveitada PIS/COFINS)', v: c.revenda_base },
+      { label: 'Aplicação Financeira', v: c.aplicacao_financeira },
+      { label: 'Variação Cambial Ativa', v: c.variacao_cambial },
+      { label: 'IRRF s/ Aplicação Financeira', v: c.irrf_aplicacao },
+    ]);
+  } catch (e) {
+    showToast('⚠ Erro ao carregar mês: ' + e.message, 'warn');
+  }
+}
+
+async function expIcCarregarTrimestre(valor) {
+  if (!valor) return;
+  const [ano, numero] = valor.split('-').map(Number);
+  try {
+    const res = await fetch(`/irpj-csll/trimestre/${ano}/${numero}`, { headers: { 'X-Auth-Token': _getToken() } });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      showToast('⚠ ' + (data?.detail || 'Trimestre não encontrado'), 'warn', 4000);
+      return;
+    }
+    const t = await res.json();
+    expIcState.trimestreAtual = { ano, numero };
+
+    document.getElementById('exp-ic-irpj-rows').innerHTML = _expIcRows([
+      { label: 'Base de Cálculo', v: t.irpj.base_calculo },
+      { label: 'Valor Apurado (15%)', v: t.irpj.valor_apurado },
+      { label: 'Adicional (10%)', v: t.irpj.adicional },
+      { label: 'Deduções', v: t.irpj.deducoes, cls: 'negative' },
+      { label: 'A RECOLHER', v: t.irpj.valor_a_pagar, cls: 'total positive' },
+    ]);
+    document.getElementById('exp-ic-csll-rows').innerHTML = _expIcRows([
+      { label: 'Base de Cálculo', v: t.csll.base_calculo },
+      { label: 'Valor Apurado (9%)', v: t.csll.valor_apurado },
+      { label: 'Deduções', v: t.csll.deducoes, cls: 'negative' },
+      { label: 'A RECOLHER', v: t.csll.valor_a_pagar, cls: 'total positive' },
+    ]);
+
+    const mkParcelas = parcelas => !parcelas.length
+      ? '<div class="exp-row"><span>—</span><span>Sem parcelas (valor zerado)</span></div>'
+      : parcelas.map(p => `<div class="exp-row${p.numero === parcelas.length ? ' total' : ''}"><span>${p.numero}ª parcela${p.selic_completa ? '' : ' ⚠'}</span><span>${brl(p.valor_total)}</span></div>`).join('');
+    document.getElementById('exp-ic-parc-irpj-rows').innerHTML = mkParcelas(t.parcelas_irpj);
+    document.getElementById('exp-ic-parc-csll-rows').innerHTML = mkParcelas(t.parcelas_csll);
+    document.getElementById('exp-ic-filename').textContent = `Apuração IRPJ CSLL ${numero}T${ano}.xlsx`;
+  } catch (e) {
+    showToast('⚠ Erro ao carregar trimestre: ' + e.message, 'warn');
+  }
+}
+
+async function expIcBaixarExcel() {
+  const errEl = document.getElementById('exp-ic-error');
+  errEl.style.display = 'none';
+
+  if (!expIcState.trimestreAtual) {
+    errEl.textContent = 'Selecione um trimestre completo.';
+    errEl.style.display = 'block';
+    return;
+  }
+  const file = document.getElementById('exp-ic-template').files[0];
+  if (!file) {
+    errEl.textContent = 'Selecione o arquivo de template.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('ano', expIcState.trimestreAtual.ano);
+  fd.append('numero', expIcState.trimestreAtual.numero);
+  fd.append('template', file);
+
+  try {
+    const res = await fetch('/irpj-csll/exportar-trimestre', { method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() } });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      throw new Error(data?.detail || 'Erro ao gerar o Excel.');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : 'apuracao_irpj_csll.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('✓ Excel gerado com sucesso', 'ok', 4000);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
   }
 }
 </script>
