@@ -923,15 +923,11 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 
     <div class="export-right">
       <div class="export-icon">📊</div>
-      <h3>Planilha Pronta</h3>
-      <p>Preenche as abas <strong>IRPJ</strong> e <strong>CSLL</strong> do template no layout padrão da contabilidade.</p>
-      <div class="form-group" style="text-align:left;margin-bottom:12px;">
-        <label>Template (obrigatório) *</label>
-        <input type="file" id="exp-ic-template" accept=".xlsx">
-      </div>
+      <h3 id="exp-ic-status-title">Planilha Pronta</h3>
+      <p id="exp-ic-status-desc">Contém as abas <strong>IRPJ</strong> e <strong>CSLL</strong> preenchidas no layout padrão da contabilidade.</p>
       <div class="export-filename" id="exp-ic-filename">—</div>
       <div class="error-msg" id="exp-ic-error" style="display:none;"></div>
-      <button class="btn-dl" onclick="expIcBaixarExcel()">
+      <button class="btn-dl" id="exp-ic-btn-baixar" onclick="expIcBaixarExcel()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Baixar Excel
       </button>
@@ -2142,7 +2138,7 @@ async function icExportar() {
 // ══════════════════════════════════════════════════════════════════
 // Exportar Excel - IRPJ/CSLL — filtro por mês ou por trimestre
 // ══════════════════════════════════════════════════════════════════
-const expIcState = { modo: 'mes', trimestreAtual: null };
+const expIcState = { modo: 'mes', trimestreAtual: null, sessionIdExcel: null };
 
 function _expIcRows(rows) {
   return rows.map(r => `<div class="exp-row ${r.cls || ''}"><span>${r.label}</span><span>${brl(r.v)}</span></div>`).join('');
@@ -2216,6 +2212,20 @@ async function expIcCarregarTrimestre(valor) {
     }
     const t = await res.json();
     expIcState.trimestreAtual = { ano, numero };
+    expIcState.sessionIdExcel = t.session_id_excel || null;
+
+    const btn = document.getElementById('exp-ic-btn-baixar');
+    const titleEl = document.getElementById('exp-ic-status-title');
+    const descEl = document.getElementById('exp-ic-status-desc');
+    if (expIcState.sessionIdExcel) {
+      btn.disabled = false;
+      titleEl.textContent = 'Planilha Pronta';
+      descEl.innerHTML = 'Contém as abas <strong>IRPJ</strong> e <strong>CSLL</strong> preenchidas no layout padrão da contabilidade.';
+    } else {
+      btn.disabled = true;
+      titleEl.textContent = 'Excel ainda não gerado';
+      descEl.innerHTML = 'Nenhum template foi anexado ao processar os meses deste trimestre. Vá em <strong>Upload → IRPJ/CSLL</strong>, reprocesse o último mês do trimestre anexando o <em>Template</em> e volte aqui.';
+    }
 
     document.getElementById('exp-ic-irpj-rows').innerHTML = _expIcRows([
       { label: 'Base de Cálculo', v: t.irpj.base_calculo },
@@ -2246,28 +2256,17 @@ async function expIcBaixarExcel() {
   const errEl = document.getElementById('exp-ic-error');
   errEl.style.display = 'none';
 
-  if (!expIcState.trimestreAtual) {
-    errEl.textContent = 'Selecione um trimestre completo.';
+  if (!expIcState.sessionIdExcel) {
+    errEl.textContent = 'Nenhum Excel gerado para este trimestre ainda (anexe o Template ao processar no Upload).';
     errEl.style.display = 'block';
     return;
   }
-  const file = document.getElementById('exp-ic-template').files[0];
-  if (!file) {
-    errEl.textContent = 'Selecione o arquivo de template.';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  const fd = new FormData();
-  fd.append('ano', expIcState.trimestreAtual.ano);
-  fd.append('numero', expIcState.trimestreAtual.numero);
-  fd.append('template', file);
 
   try {
-    const res = await fetch('/irpj-csll/exportar-trimestre', { method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() } });
+    const res = await fetch(`/irpj-csll/exportar/${expIcState.sessionIdExcel}`, { headers: { 'X-Auth-Token': _getToken() } });
     if (!res.ok) {
       const data = await _safeJson(res);
-      throw new Error(data?.detail || 'Erro ao gerar o Excel.');
+      throw new Error(data?.detail || 'Erro ao baixar o Excel.');
     }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -2280,7 +2279,6 @@ async function expIcBaixarExcel() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    showToast('✓ Excel gerado com sucesso', 'ok', 4000);
   } catch (e) {
     errEl.textContent = e.message;
     errEl.style.display = 'block';
