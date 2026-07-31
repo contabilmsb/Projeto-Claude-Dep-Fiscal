@@ -488,6 +488,42 @@ async def get_sessao(session_id: str):
     return resultado
 
 
+@app.get("/consolidacao-todas", dependencies=[Depends(require_auth)])
+async def consolidacao_todas():
+    """Consolidação de NFs de todas as competências processadas, concatenadas."""
+    if _use_supabase():
+        sb = _get_supabase()
+        rows = sb.table("sessions").select("competencia,resultado,created_at") \
+            .order("created_at", desc=True).execute()
+        sessoes = [
+            (r["competencia"], r.get("resultado") or {})
+            for r in (rows.data or [])
+        ]
+    else:
+        sessoes = [
+            (s["resultado"].get("competencia"), s["resultado"])
+            for s in _sessions.values()
+        ]
+
+    todas_nfs = []
+    todos_alertas = []
+    for competencia, resultado in sessoes:
+        for nf_row in resultado.get("consolidacao") or []:
+            linha = dict(nf_row)
+            linha["competencia"] = competencia
+            todas_nfs.append(linha)
+        for alerta in resultado.get("alertas") or []:
+            a = dict(alerta)
+            a["descricao"] = f"[{competencia}] {a.get('descricao', '')}"
+            todos_alertas.append(a)
+
+    return {
+        "competencia": "Todas as competências",
+        "consolidacao": todas_nfs,
+        "alertas": todos_alertas,
+    }
+
+
 # ── Gestão de Usuários ───────────────────────────────────────────────────────
 
 @app.get("/usuarios", dependencies=[Depends(require_auth)])

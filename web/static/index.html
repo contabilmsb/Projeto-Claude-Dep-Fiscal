@@ -507,7 +507,8 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     <!-- Empty state (sem resultado) -->
     <div class="dash-empty" id="dash-empty">
       <img src="/static/msb-logo.png" alt="MSB Medical System do Brasil" style="width:180px;margin-bottom:8px;opacity:.7;">
-      <h3>Portal de Apuração PIS/COFINS</h3>
+      <h3>Portal Tributário MSB</h3>
+      <p style="font-weight:600;color:var(--gray600);margin:-4px 0 0;">Apuração Fiscal</p>
       <p>Faça login para acessar o upload de arquivos, processar a apuração e exportar a planilha fiscal.</p>
       <button class="btn-entrar-lg" onclick="openLoginModal()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
@@ -627,6 +628,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <table class="data-table" id="cons-table">
         <thead>
           <tr>
+            <th onclick="sortTable('competencia')">Competência <span class="sort-arrow" id="sort-competencia"></span></th>
             <th onclick="sortTable('nf')">NF <span class="sort-arrow" id="sort-nf"></span></th>
             <th onclick="sortTable('cliente')">Cliente <span class="sort-arrow" id="sort-cliente"></span></th>
             <th onclick="sortTable('recebido')">Recebido <span class="sort-arrow" id="sort-recebido"></span></th>
@@ -1338,10 +1340,11 @@ function renderConsolidacao(data, alertas) {
 function renderTable(data) {
   const tbody = document.getElementById('cons-tbody');
   const tfoot = document.getElementById('cons-tfoot');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--gray400)">Nenhum registro.</td></tr>'; return; }
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--gray400)">Nenhum registro.</td></tr>'; return; }
 
   tbody.innerHTML = data.map(r => `
     <tr class="${appState.alertNFs.has(r.nf)?'highlight':''}">
+      <td>${r.competencia || '—'}</td>
       <td><strong>${r.nf}</strong></td>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${r.cliente}</td>
       <td>${brl(r.recebido)}</td>
@@ -1355,7 +1358,7 @@ function renderTable(data) {
 
   const sum = k => data.reduce((a,r) => a+(r[k]||0), 0);
   tfoot.innerHTML = `<tr>
-    <td colspan="2"><strong>TOTAL — ${data.length} NFs</strong></td>
+    <td colspan="3"><strong>TOTAL — ${data.length} NFs</strong></td>
     <td><strong>${brl(sum('recebido'))}</strong></td>
     <td><strong>${brl(sum('cofins_retido'))}</strong></td>
     <td><strong>${brl(sum('pis_retido'))}</strong></td>
@@ -1500,8 +1503,9 @@ function _preencherSelects() {
     const el = document.getElementById(id);
     if (!el) return;
     const current = el.value;
-    // Dashboard usa "Todas as competências" como padrão
-    const defaultOpt = id === 'dash-period-select'
+    // Dashboard e Consolidação NF têm "Todas as competências" como opção
+    const temTodas = id === 'dash-period-select' || id === 'cons-period-select';
+    const defaultOpt = temTodas
       ? '<option value="">Todas as competências</option>'
       : '<option value="">— selecione —</option>';
     el.innerHTML = defaultOpt + opts;
@@ -1523,6 +1527,11 @@ async function trocarPeriodo(pagina, sessionId) {
     renderDashboardAcumulado();
     return;
   }
+  // Consolidação NF sem período selecionado = todas as competências juntas
+  if (pagina === 'consolidacao' && !sessionId) {
+    await carregarConsolidacaoTodas();
+    return;
+  }
   if (!sessionId) return;
 
   // Sincroniza todos os selects de período
@@ -1535,9 +1544,11 @@ async function trocarPeriodo(pagina, sessionId) {
   const dashRight = document.querySelector('.dash-right');
   if (dashRight) dashRight.style.display = '';
 
-  // Se já é a sessão ativa, apenas re-renderiza o dashboard com os dados existentes
+  // Se já é a sessão ativa, apenas re-renderiza a página atual com os dados existentes
   if (appState.sessionId === sessionId && appState.resultado) {
-    renderDashboard(appState.resultado);
+    if (pagina === 'consolidacao') renderConsolidacao(appState.resultado.consolidacao, appState.resultado.alertas);
+    else if (pagina === 'exportar') renderExportar(appState.resultado);
+    else renderDashboard(appState.resultado);
     renderDashboardHistorico();
     return;
   }
@@ -1570,6 +1581,22 @@ async function trocarPeriodo(pagina, sessionId) {
     showToast(`✓ Competência ${data.competencia} carregada`, 'ok', 3000);
   } catch(e) {
     showToast('⚠ Erro ao carregar período: ' + e.message, 'warn');
+  }
+}
+
+async function carregarConsolidacaoTodas() {
+  const badge = document.getElementById('cons-comp');
+  if (badge) badge.textContent = '…';
+  try {
+    const res = await fetch('/consolidacao-todas', { headers: { 'X-Auth-Token': _getToken() } });
+    if (!res.ok) { showToast('⚠ Erro ao carregar todas as competências', 'warn', 3000); return; }
+    const data = await res.json();
+    document.getElementById('cons-comp').textContent = data.competencia;
+    appState.consolidacaoData = [...data.consolidacao];
+    appState.alertNFs = new Set((data.alertas||[]).flatMap(a => a.nfs || []));
+    renderTable(appState.consolidacaoData);
+  } catch(e) {
+    showToast('⚠ Erro ao carregar todas as competências: ' + e.message, 'warn');
   }
 }
 
