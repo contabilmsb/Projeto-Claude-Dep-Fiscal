@@ -844,11 +844,24 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       IRPJ / CSLL
       <span class="comp-badge" id="ic-comp"></span>
     </h2>
-    <div style="display:flex;align-items:center;gap:16px;">
+    <div style="display:flex;align-items:center;gap:10px;">
       <p id="ic-subtitle" style="margin:0;">Lucro Presumido — apuração trimestral, base caixa</p>
+      <div class="period-selector" id="ic-modo-row" style="display:none;">
+        <span class="period-label">Ver por:</span>
+        <select class="period-select" id="ic-modo-select" onchange="icMudarModo(this.value)">
+          <option value="mes">Mês</option>
+          <option value="trimestre">Trimestre</option>
+        </select>
+      </div>
       <div class="period-selector" id="ic-period-row" style="display:none;">
         <span class="period-label">Competência:</span>
         <select class="period-select" id="ic-period-select" onchange="icTrocarPeriodo(this.value)">
+          <option value="">— selecione —</option>
+        </select>
+      </div>
+      <div class="period-selector" id="ic-trim-select-row" style="display:none;">
+        <span class="period-label">Trimestre:</span>
+        <select class="period-select" id="ic-trim-select" onchange="icSelecionarTrimestre(this.value)">
           <option value="">— selecione —</option>
         </select>
       </div>
@@ -869,7 +882,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 
       <div id="ic-content" style="display:none;flex-direction:column;gap:20px;">
 
-      <div>
+      <div id="ic-mes-section">
         <div class="section-label" style="margin-bottom:10px;">Mês selecionado — <span id="ic-mes-label">—</span></div>
         <div class="cards-grid" id="ic-cards-mes"></div>
       </div>
@@ -1847,7 +1860,7 @@ function brl(v) {
 // ══════════════════════════════════════════════════════════════════
 // Módulo IRPJ / CSLL — filtro de competência independente do PIS/COFINS
 // ══════════════════════════════════════════════════════════════════
-const icState = { sessoes: [], sessionId: null, resultado: null, charts: {} };
+const icState = { sessoes: [], sessionId: null, resultado: null, charts: {}, modo: 'mes', trimestreAtual: null };
 
 async function icCarregarPeriodos() {
   try {
@@ -1860,6 +1873,18 @@ async function icCarregarPeriodos() {
       await icTrocarPeriodo(alvo);
     }
   } catch(_) {}
+
+  try {
+    const resTrim = await fetch('/irpj-csll/trimestres', { headers: { 'X-Auth-Token': _getToken() } });
+    const trimestres = resTrim.ok ? await resTrim.json() : [];
+    document.getElementById('ic-trim-select').innerHTML = '<option value="">— selecione —</option>' + trimestres.map(t =>
+      `<option value="${t.ano}-${t.trimestre}"${t.completo ? '' : ' disabled'}>${t.trimestre}º Trimestre ${t.ano}${t.completo ? '' : ' (incompleto)'}</option>`
+    ).join('');
+    if (!icState.trimestreAtual) {
+      const completo = trimestres.find(t => t.completo);
+      if (completo) icState.trimestreAtual = `${completo.ano}-${completo.trimestre}`;
+    }
+  } catch(_) {}
 }
 
 function icPreencherSelect() {
@@ -1870,9 +1895,49 @@ function icPreencherSelect() {
   }).join('');
   el.innerHTML = '<option value="">— selecione —</option>' + opts;
   if (icState.sessionId) el.value = icState.sessionId;
-  document.getElementById('ic-period-row').style.display = icState.sessoes.length ? 'flex' : 'none';
+  document.getElementById('ic-modo-row').style.display = icState.sessoes.length ? 'flex' : 'none';
+  document.getElementById('ic-period-row').style.display = (icState.sessoes.length && icState.modo !== 'trimestre') ? 'flex' : 'none';
   document.getElementById('ic-empty').style.display = icState.sessoes.length ? 'none' : 'flex';
   document.getElementById('ic-content').style.display = icState.sessoes.length ? 'flex' : 'none';
+}
+
+function icMudarModo(modo) {
+  icState.modo = modo;
+  document.getElementById('ic-period-row').style.display = modo === 'mes' ? 'flex' : 'none';
+  document.getElementById('ic-trim-select-row').style.display = modo === 'trimestre' ? 'flex' : 'none';
+  document.getElementById('ic-mes-section').style.display = modo === 'mes' ? 'block' : 'none';
+  if (modo === 'mes') {
+    if (icState.resultado) {
+      if (icState.resultado.trimestre) icRenderTrimestre(icState.resultado.trimestre);
+      else icRenderTrimestreVazio();
+    }
+  } else if (icState.trimestreAtual) {
+    icSelecionarTrimestre(icState.trimestreAtual);
+  } else {
+    icRenderTrimestreVazio();
+  }
+}
+
+async function icSelecionarTrimestre(valor) {
+  if (!valor) return;
+  icState.trimestreAtual = valor;
+  const sel = document.getElementById('ic-trim-select');
+  if (sel) sel.value = valor;
+  const [ano, numero] = valor.split('-').map(Number);
+  try {
+    const res = await fetch(`/irpj-csll/trimestre/${ano}/${numero}`, { headers: { 'X-Auth-Token': _getToken() } });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      showToast('⚠ ' + (data?.detail || 'Trimestre não encontrado'), 'warn', 4000);
+      icRenderTrimestreVazio();
+      return;
+    }
+    const t = await res.json();
+    document.getElementById('ic-comp').textContent = `${numero}º Trim. ${ano}`;
+    icRenderTrimestre(t);
+  } catch(e) {
+    showToast('⚠ Erro ao carregar trimestre: ' + e.message, 'warn');
+  }
 }
 
 async function icTrocarPeriodo(sessionId) {
