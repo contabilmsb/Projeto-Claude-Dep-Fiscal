@@ -915,12 +915,6 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
           </div>
         </div>
 
-        <div id="ic-export-row" style="display:none;">
-          <button class="btn-dl" onclick="icExportar()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Baixar Excel do Trimestre
-          </button>
-        </div>
       </div>
 
       <div id="ic-alertas"></div>
@@ -1970,9 +1964,6 @@ function icRenderTrimestre(t) {
   document.getElementById('ic-parcelas-irpj').innerHTML = icLinhasParcelas(t.parcelas_irpj);
   document.getElementById('ic-parcelas-csll').innerHTML = icLinhasParcelas(t.parcelas_csll);
 
-  document.getElementById('ic-export-row').style.display =
-    (icState.resultado && icState.resultado.session_id) ? 'block' : 'none';
-
   icRenderCharts(t);
 }
 
@@ -2120,30 +2111,6 @@ async function icProcessar() {
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Processar';
-  }
-}
-
-async function icExportar() {
-  if (!icState.sessionId) return;
-  try {
-    const res = await fetch(`/irpj-csll/exportar/${icState.sessionId}`, { headers: { 'X-Auth-Token': _getToken() } });
-    if (!res.ok) {
-      const data = await _safeJson(res);
-      throw new Error(data?.detail || 'Nenhum Excel gerado para esta sessão.');
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const cd = res.headers.get('Content-Disposition') || '';
-    const match = cd.match(/filename="?([^"]+)"?/);
-    a.download = match ? match[1] : 'apuracao_irpj_csll.xlsx';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (e) {
-    showToast('⚠ ' + e.message, 'warn');
   }
 }
 
