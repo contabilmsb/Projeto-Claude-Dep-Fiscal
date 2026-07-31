@@ -885,6 +885,18 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <div id="ic-mes-section">
         <div class="section-label" style="margin-bottom:10px;">Mês selecionado — <span id="ic-mes-label">—</span></div>
         <div class="cards-grid" id="ic-cards-mes"></div>
+
+        <div class="section-label" style="margin:16px 0 10px;">Apuração do Mês (informativo — o IRPJ/CSLL só é devido por trimestre)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div class="chart-card">
+            <h3>IRPJ</h3>
+            <table class="detail-table" id="ic-mes-table-irpj"></table>
+          </div>
+          <div class="chart-card">
+            <h3>CSLL</h3>
+            <table class="detail-table" id="ic-mes-table-csll"></table>
+          </div>
+        </div>
       </div>
 
       <div id="ic-trimestre-empty" style="background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;font-size:13px;color:var(--gray600);display:none;"></div>
@@ -1974,6 +1986,23 @@ function icRenderMes(data) {
       <div class="card-label">${label}</div>
       <div class="card-value">${brl(v)}</div>
     </div>`).join('');
+
+  const am = data.apuracao_mes;
+  if (am) {
+    document.getElementById('ic-mes-table-irpj').innerHTML = icLinhasTabela([
+      ['Base de Cálculo', am.irpj.base_calculo],
+      ['IRPJ Apurado (15%)', am.irpj.valor_apurado],
+      ['Adicional (10%)', am.irpj.adicional],
+      ['(-) Deduções (IRRF cliente + aplicação)', am.irpj.deducoes],
+      ['IRPJ A RECOLHER (estimado)', am.irpj.valor_a_pagar],
+    ]);
+    document.getElementById('ic-mes-table-csll').innerHTML = icLinhasTabela([
+      ['Base de Cálculo', am.csll.base_calculo],
+      ['CSLL Apurada (9%)', am.csll.valor_apurado],
+      ['(-) Deduções (CSLL Retida)', am.csll.deducoes],
+      ['CSLL A RECOLHER (estimado)', am.csll.valor_a_pagar],
+    ]);
+  }
 }
 
 function icRenderTrimestreVazio() {

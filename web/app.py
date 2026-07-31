@@ -37,6 +37,7 @@ from src.irpj_csll import readers as irpj_readers
 from src.irpj_csll.calculator import (
     calcular_mes as irpj_calcular_mes,
     consolidar_trimestre as irpj_consolidar_trimestre,
+    apurar_mes as irpj_apurar_mes,
     trimestre_de as irpj_trimestre_de,
     meses_do_trimestre as irpj_meses_do_trimestre,
     ComponenteMes as IrpjComponenteMes,
@@ -924,6 +925,10 @@ async def irpj_csll_get_sessao(session_id: str):
         raise HTTPException(status_code=404, detail="Sessão não encontrada.")
     resultado = session.get("resultado") or session.get("resultado", {})
     resultado["session_id"] = session.get("id", session_id)
+    if resultado.get("componente"):
+        componente = IrpjComponenteMes(**resultado["componente"])
+        irpj_mes, csll_mes = irpj_apurar_mes(componente)
+        resultado["apuracao_mes"] = {"irpj": asdict(irpj_mes), "csll": asdict(csll_mes)}
     return resultado
 
 

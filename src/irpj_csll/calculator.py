@@ -105,16 +105,8 @@ def _montar_parcelas(valor_devido: float) -> list[Parcela]:
     return [Parcela(numero=i, valor=valor) for i in range(1, n + 1)]
 
 
-def consolidar_trimestre(ano: int, trimestre: int, meses: list[ComponenteMes]) -> ResultadoTrimestre:
-    """
-    Consolida os 3 meses de um trimestre-calendário e apura IRPJ e CSLL.
-
-    `meses` deve conter exatamente os 3 ComponenteMes do trimestre, na ordem
-    cronológica (ex.: abril, maio, junho para o 2º trimestre).
-    """
-    if len(meses) != 3:
-        raise ValueError("É necessário informar os 3 meses do trimestre para consolidar.")
-
+def _apurar(meses: list[ComponenteMes], limite_adicional: float) -> tuple[ApuracaoTributo, ApuracaoTributo]:
+    """Apura IRPJ e CSLL sobre a soma dos componentes informados (1 mês ou o trimestre inteiro)."""
     soma_revenda = sum(m.revenda_base for m in meses)
     soma_servicos = sum(m.servicos_base for m in meses)
     soma_outras = sum(
@@ -132,7 +124,7 @@ def consolidar_trimestre(ano: int, trimestre: int, meses: list[ComponenteMes]) -
     base_irpj = base_irpj_revenda + base_irpj_servicos + base_irpj_outras
 
     irpj_apurado = base_irpj * cfg.IRPJ_RATE
-    excedente = max(base_irpj - cfg.LIMITE_ADICIONAL_TRIMESTRE, 0.0)
+    excedente = max(base_irpj - limite_adicional, 0.0)
     irpj_adicional = excedente * cfg.IRPJ_ADICIONAL_RATE
     irpj_devido = irpj_apurado + irpj_adicional
     irpj_deducoes = soma_irrf_cliente + soma_irrf_aplicacao
@@ -174,8 +166,34 @@ def consolidar_trimestre(ano: int, trimestre: int, meses: list[ComponenteMes]) -
         base_outras_receitas=base_csll_outras,
     )
 
-    parcelas_irpj = _montar_parcelas(irpj_a_pagar)
-    parcelas_csll = _montar_parcelas(csll_a_pagar)
+    return irpj, csll
+
+
+def apurar_mes(componente: ComponenteMes) -> tuple[ApuracaoTributo, ApuracaoTributo]:
+    """
+    Apuração informativa de um único mês (mesmas alíquotas/deduções da apuração
+    trimestral, com o limite do adicional de IRPJ proporcional a 1 mês).
+
+    O IRPJ/CSLL do Lucro Presumido só é efetivamente devido por trimestre —
+    este valor é apenas uma estimativa mês a mês para acompanhamento.
+    """
+    return _apurar([componente], cfg.LIMITE_ADICIONAL_MENSAL)
+
+
+def consolidar_trimestre(ano: int, trimestre: int, meses: list[ComponenteMes]) -> ResultadoTrimestre:
+    """
+    Consolida os 3 meses de um trimestre-calendário e apura IRPJ e CSLL.
+
+    `meses` deve conter exatamente os 3 ComponenteMes do trimestre, na ordem
+    cronológica (ex.: abril, maio, junho para o 2º trimestre).
+    """
+    if len(meses) != 3:
+        raise ValueError("É necessário informar os 3 meses do trimestre para consolidar.")
+
+    irpj, csll = _apurar(meses, cfg.LIMITE_ADICIONAL_TRIMESTRE)
+
+    parcelas_irpj = _montar_parcelas(irpj.valor_a_pagar)
+    parcelas_csll = _montar_parcelas(csll.valor_a_pagar)
 
     return ResultadoTrimestre(
         ano=ano,
