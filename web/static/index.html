@@ -1919,10 +1919,8 @@ function icMudarModo(modo) {
   document.getElementById('ic-trim-select-row').style.display = modo === 'trimestre' ? 'flex' : 'none';
   document.getElementById('ic-mes-section').style.display = modo === 'mes' ? 'block' : 'none';
   if (modo === 'mes') {
-    if (icState.resultado) {
-      if (icState.resultado.trimestre) icRenderTrimestre(icState.resultado.trimestre);
-      else icRenderTrimestreVazio();
-    }
+    document.getElementById('ic-trimestre-wrap').style.display = 'none';
+    document.getElementById('ic-trimestre-empty').style.display = 'none';
   } else if (icState.trimestreAtual) {
     icSelecionarTrimestre(icState.trimestreAtual);
   } else {
@@ -1964,8 +1962,6 @@ async function icTrocarPeriodo(sessionId) {
     icState.resultado = data;
     document.getElementById('ic-comp').textContent = data.competencia;
     icRenderMes(data);
-    if (data.trimestre) icRenderTrimestre(data.trimestre);
-    else icRenderTrimestreVazio();
     icRenderAlertas(data.alertas || []);
   } catch(e) {
     showToast('⚠ Erro ao carregar período: ' + e.message, 'warn');
