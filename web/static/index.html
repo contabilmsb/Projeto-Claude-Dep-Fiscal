@@ -363,15 +363,11 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     </div>
     <div class="nav-item disabled" data-page="exportar" data-protected="true" onclick="navigate('exportar')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Exportar Excel - PIS/COFINS
+      Download Apuração
     </div>
     <div class="nav-item" data-page="irpjcsll" data-protected="true" onclick="navigate('irpjcsll')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       IRPJ / CSLL
-    </div>
-    <div class="nav-item" data-page="exportar-irpjcsll" data-protected="true" onclick="navigate('exportar-irpjcsll')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Exportar Excel - IRPJ/CSLL
     </div>
     <div class="nav-item" data-page="usuarios" data-protected="true" onclick="navigate('usuarios')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -654,16 +650,45 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
   <div class="page-header">
     <h2>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Exportar Excel - PIS/COFINS
+      Download Apuração
     </h2>
-    <div class="period-selector">
-      <span class="period-label">Competência:</span>
-      <select class="period-select" id="exp-period-select" onchange="trocarPeriodo('exportar', this.value)">
-        <option value="">— selecione —</option>
-      </select>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="period-selector" id="exp-pis-selector-row">
+        <span class="period-label">Competência:</span>
+        <select class="period-select" id="exp-period-select" onchange="trocarPeriodo('exportar', this.value)">
+          <option value="">— selecione —</option>
+        </select>
+      </div>
+      <div id="exp-ic-selectors" style="display:none;align-items:center;gap:10px;">
+        <div class="period-selector">
+          <span class="period-label">Ver por:</span>
+          <select class="period-select" id="exp-ic-modo-select" onchange="expIcMudarModo(this.value)">
+            <option value="mes">Mês</option>
+            <option value="trimestre">Trimestre</option>
+          </select>
+        </div>
+        <div class="period-selector" id="exp-ic-mes-row">
+          <span class="period-label">Competência:</span>
+          <select class="period-select" id="exp-ic-mes-select" onchange="expIcCarregarMes(this.value)">
+            <option value="">— selecione —</option>
+          </select>
+        </div>
+        <div class="period-selector" id="exp-ic-trim-row" style="display:none;">
+          <span class="period-label">Trimestre:</span>
+          <select class="period-select" id="exp-ic-trim-select" onchange="expIcCarregarTrimestre(this.value)">
+            <option value="">— selecione —</option>
+          </select>
+        </div>
+      </div>
     </div>
   </div>
-  <div class="export-body">
+
+  <div class="right-tabs" style="max-width:360px;">
+    <div class="rtab active" id="etab-pis" onclick="switchExportTab('pis')">PIS/COFINS</div>
+    <div class="rtab" id="etab-irpj" onclick="switchExportTab('irpj')">IRPJ/CSLL</div>
+  </div>
+
+  <div class="export-body" id="export-panel-pis">
     <div class="export-left">
 
       <div class="exp-summary-card">
@@ -693,6 +718,53 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <p>Contém as abas <strong>COFINS</strong>, <strong>PIS</strong>, <strong>Consolidação NF</strong> e <strong>Validação</strong> no layout padrão da equipe fiscal.</p>
       <div class="export-filename" id="export-filename">—</div>
       <button class="btn-dl" onclick="exportar()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar Excel
+      </button>
+    </div>
+  </div>
+
+  <div class="export-body" id="exp-ic-mes-body" style="display:none;">
+    <div class="export-left">
+      <div class="exp-summary-card">
+        <h4>Componentes do Mês — <span id="exp-ic-mes-comp">—</span></h4>
+        <div id="exp-ic-mes-rows"></div>
+      </div>
+    </div>
+    <div class="export-right">
+      <div class="export-icon">📅</div>
+      <h3>Visão Mensal</h3>
+      <p>A exportação em Excel é feita por <strong>trimestre</strong> (regime de apuração do IRPJ/CSLL no Lucro Presumido). Troque para "Trimestre" no filtro acima para gerar o arquivo.</p>
+    </div>
+  </div>
+
+  <div class="export-body" id="exp-ic-trim-body" style="display:none;">
+    <div class="export-left">
+      <div class="exp-summary-card">
+        <h4>Resumo — IRPJ</h4>
+        <div id="exp-ic-irpj-rows"></div>
+      </div>
+      <div class="exp-summary-card">
+        <h4>Resumo — CSLL</h4>
+        <div id="exp-ic-csll-rows"></div>
+      </div>
+      <div class="exp-summary-card">
+        <h4>Parcelas — IRPJ (DARF 2089)</h4>
+        <div id="exp-ic-parc-irpj-rows"></div>
+      </div>
+      <div class="exp-summary-card">
+        <h4>Parcelas — CSLL (DARF 2372)</h4>
+        <div id="exp-ic-parc-csll-rows"></div>
+      </div>
+    </div>
+
+    <div class="export-right">
+      <div class="export-icon">📊</div>
+      <h3 id="exp-ic-status-title">Planilha Pronta</h3>
+      <p id="exp-ic-status-desc">Contém as abas <strong>IRPJ</strong> e <strong>CSLL</strong> preenchidas no layout padrão da contabilidade.</p>
+      <div class="export-filename" id="exp-ic-filename">—</div>
+      <div class="error-msg" id="exp-ic-error" style="display:none;"></div>
+      <button class="btn-dl" id="exp-ic-btn-baixar" onclick="expIcBaixarExcel()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Baixar Excel
       </button>
@@ -857,83 +929,6 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
   </div>
 </div>
 
-<!-- ─────────────── EXPORTAR IRPJ/CSLL ─────────────── -->
-<div id="page-exportar-irpjcsll" class="page">
-  <div class="page-header">
-    <h2>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Exportar Excel - IRPJ/CSLL
-    </h2>
-    <div style="display:flex;align-items:center;gap:10px;">
-      <div class="period-selector">
-        <span class="period-label">Ver por:</span>
-        <select class="period-select" id="exp-ic-modo-select" onchange="expIcMudarModo(this.value)">
-          <option value="mes">Mês</option>
-          <option value="trimestre">Trimestre</option>
-        </select>
-      </div>
-      <div class="period-selector" id="exp-ic-mes-row">
-        <span class="period-label">Competência:</span>
-        <select class="period-select" id="exp-ic-mes-select" onchange="expIcCarregarMes(this.value)">
-          <option value="">— selecione —</option>
-        </select>
-      </div>
-      <div class="period-selector" id="exp-ic-trim-row" style="display:none;">
-        <span class="period-label">Trimestre:</span>
-        <select class="period-select" id="exp-ic-trim-select" onchange="expIcCarregarTrimestre(this.value)">
-          <option value="">— selecione —</option>
-        </select>
-      </div>
-    </div>
-  </div>
-
-  <div class="export-body" id="exp-ic-mes-body">
-    <div class="export-left">
-      <div class="exp-summary-card">
-        <h4>Componentes do Mês — <span id="exp-ic-mes-comp">—</span></h4>
-        <div id="exp-ic-mes-rows"></div>
-      </div>
-    </div>
-    <div class="export-right">
-      <div class="export-icon">📅</div>
-      <h3>Visão Mensal</h3>
-      <p>A exportação em Excel é feita por <strong>trimestre</strong> (regime de apuração do IRPJ/CSLL no Lucro Presumido). Troque para "Trimestre" no filtro acima para gerar o arquivo.</p>
-    </div>
-  </div>
-
-  <div class="export-body" id="exp-ic-trim-body" style="display:none;">
-    <div class="export-left">
-      <div class="exp-summary-card">
-        <h4>Resumo — IRPJ</h4>
-        <div id="exp-ic-irpj-rows"></div>
-      </div>
-      <div class="exp-summary-card">
-        <h4>Resumo — CSLL</h4>
-        <div id="exp-ic-csll-rows"></div>
-      </div>
-      <div class="exp-summary-card">
-        <h4>Parcelas — IRPJ (DARF 2089)</h4>
-        <div id="exp-ic-parc-irpj-rows"></div>
-      </div>
-      <div class="exp-summary-card">
-        <h4>Parcelas — CSLL (DARF 2372)</h4>
-        <div id="exp-ic-parc-csll-rows"></div>
-      </div>
-    </div>
-
-    <div class="export-right">
-      <div class="export-icon">📊</div>
-      <h3 id="exp-ic-status-title">Planilha Pronta</h3>
-      <p id="exp-ic-status-desc">Contém as abas <strong>IRPJ</strong> e <strong>CSLL</strong> preenchidas no layout padrão da contabilidade.</p>
-      <div class="export-filename" id="exp-ic-filename">—</div>
-      <div class="error-msg" id="exp-ic-error" style="display:none;"></div>
-      <button class="btn-dl" id="exp-ic-btn-baixar" onclick="expIcBaixarExcel()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Baixar Excel
-      </button>
-    </div>
-  </div>
-</div>
 
 </main>
 <div id="toast"></div>
@@ -1122,6 +1117,20 @@ function switchUploadTab(tab) {
   document.getElementById('upload-subtitle').textContent = tab === 'pis'
     ? 'Selecione os 8 arquivos da competência'
     : 'Selecione os arquivos do mês (IRPJ/CSLL)';
+}
+
+function switchExportTab(tab) {
+  document.getElementById('etab-pis').classList.toggle('active', tab === 'pis');
+  document.getElementById('etab-irpj').classList.toggle('active', tab === 'irpj');
+  document.getElementById('exp-pis-selector-row').style.display = tab === 'pis' ? 'flex' : 'none';
+  document.getElementById('exp-ic-selectors').style.display = tab === 'irpj' ? 'flex' : 'none';
+  document.getElementById('export-panel-pis').style.display = tab === 'pis' ? 'grid' : 'none';
+  if (tab === 'irpj') {
+    expIcMudarModo(expIcState.modo);
+  } else {
+    document.getElementById('exp-ic-mes-body').style.display = 'none';
+    document.getElementById('exp-ic-trim-body').style.display = 'none';
+  }
 }
 
 function formatCompetencia(input) {
@@ -1420,7 +1429,7 @@ function navigate(page) {
   if (page === 'usuarios')    carregarUsuarios();
   if (page === 'consolidacao' || page === 'exportar') carregarSessoes();
   if (page === 'irpjcsll')    icCarregarPeriodos();
-  if (page === 'exportar-irpjcsll') expIcInit();
+  if (page === 'exportar')    expIcInit();
 }
 
 // ═══ Seletor de Período ═══
