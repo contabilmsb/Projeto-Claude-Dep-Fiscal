@@ -890,6 +890,32 @@ async def irpj_csll_periodos():
     return _irpj_build_resumo_list()
 
 
+@app.get("/irpj-csll/ultimo-resultado")
+async def irpj_csll_ultimo_resultado():
+    """Retorna a competência mais recente do módulo IRPJ/CSLL sem autenticação (somente leitura)."""
+    if _use_supabase():
+        sb = _get_supabase()
+        rows = sb.table(SESSIONS_IRPJ_CSLL_TABLE).select("resultado,competencia,created_at,id") \
+            .order("created_at", desc=True).limit(1).execute()
+        if not rows.data:
+            return None
+        r = rows.data[0]
+        resultado = dict(r["resultado"])
+        resultado["session_id"] = r["id"]
+    elif _sessions_irpj_csll:
+        last_id = list(_sessions_irpj_csll.keys())[-1]
+        resultado = dict(_sessions_irpj_csll[last_id]["resultado"])
+        resultado["session_id"] = last_id
+    else:
+        return None
+
+    if resultado.get("componente"):
+        componente = IrpjComponenteMes(**resultado["componente"])
+        irpj_mes, csll_mes = irpj_apurar_mes(componente)
+        resultado["apuracao_mes"] = {"irpj": asdict(irpj_mes), "csll": asdict(csll_mes)}
+    return resultado
+
+
 @app.get("/irpj-csll/trimestres")
 async def irpj_csll_trimestres():
     """Lista trimestres com base nas competências processadas, indicando quais estão completos."""
@@ -932,7 +958,7 @@ async def irpj_csll_get_sessao(session_id: str):
     return resultado
 
 
-@app.get("/irpj-csll/trimestre/{ano}/{numero}", dependencies=[Depends(require_auth)])
+@app.get("/irpj-csll/trimestre/{ano}/{numero}")
 async def irpj_csll_get_trimestre(ano: int, numero: int):
     resultado = _irpj_tentar_consolidar_trimestre(ano, numero)
     if not resultado:
