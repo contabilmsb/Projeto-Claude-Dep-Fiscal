@@ -2011,7 +2011,10 @@ function icRenderCharts(t) {
 
 function icRenderAlertas(alertas) {
   const c = document.getElementById('ic-alertas');
-  if (!alertas || !alertas.length) { c.innerHTML = ''; return; }
+  // SELIC_INDISPONIVEL: alerta descontinuado (parcelas nao usam mais SELIC),
+  // mas pode existir em sessoes antigas ja salvas — filtra para nao reaparecer.
+  alertas = (alertas || []).filter(a => a.tipo !== 'SELIC_INDISPONIVEL');
+  if (!alertas.length) { c.innerHTML = ''; return; }
   c.innerHTML = alertas.map(a => `
     <div class="alert-box warn">
       <div class="alert-icon">⚠️</div>
