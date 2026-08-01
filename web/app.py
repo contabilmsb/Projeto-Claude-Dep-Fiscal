@@ -45,6 +45,10 @@ from src.irpj_csll.calculator import (
 from src.irpj_csll.validator import validar_trimestre_completo
 from src.irpj_csll.writer import atualizar_template as atualizar_template_irpj_csll
 
+from src.tributofacil.difal_bahia.xml_parser import parse_nfe_xml
+from src.tributofacil.difal_bahia.calculator import calcular_difal_item
+from src.tributofacil.difal_bahia.writer import gerar_excel as gerar_excel_difal_bahia
+
 app = FastAPI(title="Apuração PIS/COFINS")
 
 app.add_middleware(
@@ -522,6 +526,66 @@ async def consolidacao_todas():
         "consolidacao": todas_nfs,
         "alertas": todos_alertas,
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Tributo Fácil — DIFAL de compras interestaduais destinadas à Bahia
+#
+# Módulo sem persistência: recebe os XMLs de NF-e, calcula o DIFAL item a
+# item (Lei nº 7.014/1996) e devolve direto o Excel para download.
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/tributofacil/difal-bahia/processar", dependencies=[Depends(require_auth)])
+async def tributofacil_difal_bahia_processar(arquivos: list[UploadFile] = File(...)):
+    tmp_dir = Path(tempfile.mkdtemp(prefix="difal_bahia_"))
+    try:
+        linhas = []
+        avisos = []
+        for arquivo in arquivos:
+            dest_path = tmp_dir / arquivo.filename
+            dest_path.write_bytes(await arquivo.read())
+            try:
+                itens = parse_nfe_xml(dest_path, arquivo.filename)
+            except Exception as e:
+                avisos.append(f"{arquivo.filename}: erro ao ler o XML — {e}")
+                continue
+
+            if not itens:
+                avisos.append(f"{arquivo.filename}: nenhum item (<det>) encontrado na NF-e.")
+
+            for item in itens:
+                if item.uf_destino != "BA":
+                    avisos.append(
+                        f"{arquivo.filename} (NF {item.numero_nf}): UF de destino é "
+                        f"{item.uf_destino or '(vazio)'}, não BA — incluído mesmo assim, revisar."
+                    )
+                res = calcular_difal_item(item.valor_operacao, item.aliquota_interestadual, item.substituicao_tributaria)
+                linhas.append((item, res))
+
+        if not linhas:
+            raise HTTPException(status_code=422, detail="Nenhum item válido encontrado nos arquivos enviados.")
+
+        excel_bytes = gerar_excel_difal_bahia(linhas, avisos)
+        total_difal = sum(res.difal for _, res in linhas)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"DIFAL_Bahia_{ts}.xlsx"
+
+        return StreamingResponse(
+            iter([excel_bytes]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Difal-Total": f"{total_difal:.2f}",
+                "X-Difal-Qtd-Itens": str(len(linhas)),
+                "X-Difal-Qtd-Avisos": str(len(avisos)),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ── Gestão de Usuários ───────────────────────────────────────────────────────

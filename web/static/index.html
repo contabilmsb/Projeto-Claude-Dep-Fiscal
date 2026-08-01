@@ -961,12 +961,48 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       Tributo Fácil
     </h2>
-    <p>Novo módulo — em construção</p>
+    <p>Apurações auxiliares — sem gravação em banco de dados</p>
   </div>
-  <div class="dash-scroll-wrap">
-    <div class="dash-empty">
-      <h3>Tributo Fácil</h3>
-      <p>Este módulo ainda está sendo desenvolvido.</p>
+
+  <div class="right-tabs" style="max-width:520px;">
+    <div class="rtab active">DIFAL Compras Bahia</div>
+    <div class="rtab" style="opacity:.35;cursor:not-allowed;" title="Em breve">Retenções CSRF</div>
+    <div class="rtab" style="opacity:.35;cursor:not-allowed;" title="Em breve">IRRF</div>
+  </div>
+
+  <div class="upload-body">
+    <div class="upload-left">
+      <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
+        <div class="section-label">DIFAL de Compras — Estado da Bahia</div>
+        <p style="font-size:12px;color:var(--gray600);line-height:1.6;margin:0;">
+          Envie os arquivos XML das NF-e de compra interestadual destinadas a uso, consumo ou ativo imobilizado.
+          O sistema lê a alíquota interestadual e o regime do emitente diretamente de cada XML — quando não há
+          ICMS destacado (Simples Nacional), assume alíquota interestadual de 0%. O DIFAL é calculado com a
+          alíquota interna da Bahia (20,5%), pela fórmula de base dupla "por dentro" da Lei nº 7.014/1996,
+          art. 17, XI e §6º (com fórmula específica para itens sujeitos à substituição tributária).
+        </p>
+        <div class="form-group">
+          <label>Arquivos XML (um ou mais) *</label>
+          <input type="file" id="tf-difal-files" accept=".xml" multiple onchange="tfDifalAtualizaLista()">
+        </div>
+        <div id="tf-difal-filelist" style="font-size:12px;color:var(--gray600);"></div>
+        <div class="error-msg" id="tf-difal-error" style="display:none;"></div>
+        <button class="btn btn-primary" onclick="tfDifalProcessar()" id="tf-difal-btn" style="width:auto;padding:10px 24px;align-self:flex-start;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Processar e Baixar Excel
+        </button>
+      </div>
+    </div>
+
+    <div class="upload-right">
+      <h3>Como funciona</h3>
+      <p style="font-size:12px;color:var(--gray600);line-height:1.7;">
+        1. Selecione um ou mais arquivos XML de NF-e de compra.<br>
+        2. O DIFAL é calculado item a item, considerando o regime de cada emitente.<br>
+        3. Nada é salvo no sistema — o resultado sai direto em um Excel para download,
+        com uma aba de avisos quando algo merece atenção (ex.: destino diferente de BA).
+      </p>
+      <div id="tf-difal-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
 </div>
@@ -2400,6 +2436,88 @@ async function expIcBaixarExcel() {
   } catch (e) {
     errEl.textContent = e.message;
     errEl.style.display = 'block';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Tributo Fácil — DIFAL Compras Bahia
+// ══════════════════════════════════════════════════════════════════
+function tfDifalAtualizaLista() {
+  const files = document.getElementById('tf-difal-files').files;
+  const el = document.getElementById('tf-difal-filelist');
+  el.textContent = files.length
+    ? `${files.length} arquivo(s) selecionado(s): ${[...files].map(f => f.name).join(', ')}`
+    : '';
+}
+
+async function tfDifalProcessar() {
+  const errEl = document.getElementById('tf-difal-error');
+  errEl.style.display = 'none';
+
+  const files = document.getElementById('tf-difal-files').files;
+  if (!files.length) {
+    errEl.textContent = 'Selecione ao menos um arquivo XML.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('tf-difal-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processando…';
+
+  const fd = new FormData();
+  [...files].forEach(f => fd.append('arquivos', f));
+
+  try {
+    const res = await fetch('/tributofacil/difal-bahia/processar', {
+      method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() },
+    });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      throw new Error(data?.detail || 'Erro ao processar os arquivos.');
+    }
+
+    const total = parseFloat(res.headers.get('X-Difal-Total') || '0');
+    const qtd = res.headers.get('X-Difal-Qtd-Itens') || '0';
+    const qtdAvisos = parseInt(res.headers.get('X-Difal-Qtd-Avisos') || '0', 10);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : 'difal_bahia.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    document.getElementById('tf-difal-resumo').innerHTML = `
+      <div class="card">
+        <div class="card-label">Itens processados</div>
+        <div class="card-value">${qtd}</div>
+      </div>
+      <div class="card accent-red">
+        <div class="card-label">Total DIFAL</div>
+        <div class="card-value">${brl(total)}</div>
+      </div>
+      ${qtdAvisos > 0 ? `
+        <div class="alert-box warn">
+          <div class="alert-icon">⚠️</div>
+          <div>
+            <div class="alert-title">Avisos</div>
+            <div class="alert-desc">${qtdAvisos} aviso(s) — confira a aba "Avisos" no Excel gerado.</div>
+          </div>
+        </div>` : ''}
+    `;
+    showToast('✓ Excel gerado e baixado com sucesso', 'ok', 4000);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
   }
 }
 </script>
