@@ -33,6 +33,21 @@ def _observacoes(item: ItemDifal) -> str:
         obs.append("Sem ICMS destacado (Simples Nacional) — alíquota interestadual assumida em 0%")
     if item.substituicao_tributaria:
         obs.append("ICMS-ST identificado no XML — fórmula de DIFAL-ST aplicada")
+    if item.reducao_base_convenio_5291:
+        obs.append(
+            f"Redução de base do ICMS ao amparo do Convênio ICMS 52/91 (pRedBC "
+            f"{item.percentual_reducao_bc:.2f}%) — DIFAL calculado com a alíquota interna "
+            f"reduzida de 5,60% reconhecida pela Bahia (Art. 266 do RICMS-BA), em vez dos "
+            f"20,5% padrão. Confirme a destinação industrial do bem, pois o fisco baiano "
+            f"restringe este benefício a uso industrial do adquirente."
+        )
+    elif item.percentual_reducao_bc:
+        obs.append(
+            f"Redução de base do ICMS na origem (pRedBC {item.percentual_reducao_bc:.2f}%) não "
+            f"identificada como Convênio 52/91 — a Bahia, em regra, não reconhece essa redução "
+            f"para fins de DIFAL; calculado com a alíquota interna cheia de 20,5%. Verifique "
+            f"manualmente se algum benefício específico se aplica."
+        )
     if item.uf_destino != "BA":
         obs.append(f"ATENÇÃO: UF de destino da nota é {item.uf_destino}, não BA")
     if item.uf_origem == "BA":

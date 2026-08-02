@@ -18,6 +18,13 @@ from dataclasses import dataclass
 
 ALIQUOTA_INTERNA_BA = 0.205
 
+# Convênio ICMS 52/91 (máquinas, aparelhos e equipamentos industriais,
+# Anexo I) fixa carga tributária efetiva de 5,60% nas operações internas e
+# nas interestaduais para uso/consumo/ativo — benefício internalizado pela
+# Bahia no Art. 266 do RICMS-BA, uma das exceções em que o Estado reconhece
+# a redução de base também para fins de cálculo do DIFAL.
+ALIQUOTA_INTERNA_CONVENIO_5291 = 0.056
+
 
 @dataclass
 class ResultadoDifalItem:

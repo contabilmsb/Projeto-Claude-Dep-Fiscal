@@ -4,23 +4,34 @@ destinadas ao Estado da Bahia (uso, consumo ou ativo imobilizado).
 
 Base legal: Lei nº 7.014/1996, art. 4º XV e art. 17 XI e §6º.
 
-Para cada item (<det>) da NF-e, extrai o valor da operação e a alíquota
-interestadual a partir do próprio ICMS destacado no XML:
-  - Se o item tem "vBC"/"pICMS" destacados (ICMS00, ICMS10, ICMS20, ...):
-    usa esses valores diretamente.
-  - Se o item é do Simples Nacional sem destaque de ICMS (ICMSSN101,
-    ICMSSN102, ICMSSN103, ICMSSN300, ICMSSN400): assume alíquota
-    interestadual de 0% e usa o valor do produto (+ acessórios) como
-    valor da operação.
+Para cada item (<det>) da NF-e, extrai o valor da operação (vProd +
+acessórios) e a alíquota interestadual EFETIVA (ICMS destacado / valor da
+operação):
+  - Quando o item tem ICMS próprio destacado (vICMS, em ICMS00, ICMS10,
+    ICMS20 etc.): a alíquota efetiva é calculada sobre o valor total do
+    item, não sobre uma eventual base reduzida — isso evita duplicar uma
+    redução de base que já está embutida no vICMS.
+  - Se o item é do Simples Nacional sem destaque de ICMS próprio
+    (ICMSSN101, ICMSSN102, ICMSSN103, ICMSSN300, ICMSSN400): assume
+    alíquota interestadual de 0%.
   - Sinaliza substituição tributária quando há vBCST/pICMSST/vICMSST no
     item, para aplicar a fórmula de DIFAL-ST em vez da fórmula normal.
+  - Sinaliza itens com redução de base do ICMS amparada pelo Convênio
+    ICMS 52/91 (identificado via menção ao convênio nas Informações
+    Complementares da nota, combinada com a presença de pRedBC no item):
+    a Bahia reconhece esse benefício também na operação equivalente
+    interna (Art. 266 do RICMS-BA), então o DIFAL desses itens deve usar
+    a alíquota interna reduzida de 5,60%, não os 20,5% padrão.
 """
 
+import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
 NS = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
+
+_RE_CONVENIO_5291 = re.compile(r"conv[eê]nio\s*(?:icms)?\s*n?[o°º]?\.?\s*52[\s/.\-]*91", re.IGNORECASE)
 
 
 def _t(el, path: str, default: str | None = None) -> str | None:
@@ -54,10 +65,12 @@ class ItemDifal:
     cfop: str
     n_item: str
     descricao_produto: str
-    valor_operacao: float         # base usada no cálculo (vBC destacado, ou vProd + acessórios)
-    aliquota_interestadual: float  # decimal (ex.: 0.07)
-    icms_destacado: bool           # False quando não há vBC/pICMS no XML (Simples Nacional)
+    valor_operacao: float          # vProd + acessórios (frete/seguro/outras despesas - desconto)
+    aliquota_interestadual: float  # efetiva: vICMS destacado / valor_operacao (decimal, ex.: 0.07)
+    icms_destacado: bool           # False quando não há ICMS próprio destacado no XML (Simples Nacional)
     substituicao_tributaria: bool
+    reducao_base_convenio_5291: bool  # base de ICMS reduzida ao amparo do Convênio ICMS 52/91
+    percentual_reducao_bc: float | None  # pRedBC do item, quando houver (informativo)
     ind_final: str                 # indFinal — 1 = consumidor final
 
 
@@ -65,36 +78,44 @@ def _regime(crt: str | None) -> str:
     return "Simples Nacional" if crt == "1" else "Normal"
 
 
-def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str) -> ItemDifal:
+def _nota_menciona_convenio_5291(inf_nfe) -> bool:
+    inf_adic = inf_nfe.find("nfe:infAdic", NS)
+    texto = (_t(inf_adic, "nfe:infCpl", "") or "") + " " + (_t(inf_adic, "nfe:infAdFisco", "") or "")
+    return bool(_RE_CONVENIO_5291.search(texto))
+
+
+def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str, nota_convenio_5291: bool) -> ItemDifal:
     prod = det.find("nfe:prod", NS)
     imposto = det.find("nfe:imposto", NS)
     icms = imposto.find("nfe:ICMS", NS) if imposto is not None else None
     icms_node = next(iter(icms), None) if icms is not None else None
 
-    v_bc = None
-    p_icms = None
+    v_icms = None
     st = False
+    p_red_bc = None
     if icms_node is not None:
-        v_bc_txt = _t(icms_node, "nfe:vBC")
-        p_icms_txt = _t(icms_node, "nfe:pICMS")
-        if v_bc_txt is not None and p_icms_txt is not None:
-            v_bc = float(v_bc_txt)
-            p_icms = float(p_icms_txt) / 100.0
+        v_icms_txt = _t(icms_node, "nfe:vICMS")
+        if v_icms_txt is not None:
+            v_icms = float(v_icms_txt)
+        p_red_bc_txt = _t(icms_node, "nfe:pRedBC")
+        if p_red_bc_txt is not None:
+            p_red_bc = float(p_red_bc_txt)
         if _t(icms_node, "nfe:vBCST") or _t(icms_node, "nfe:pICMSST") or _t(icms_node, "nfe:vICMSST"):
             st = True
 
-    icms_destacado = v_bc is not None and p_icms is not None
-    if icms_destacado:
-        valor_operacao = v_bc
-        aliquota = p_icms
-    else:
-        v_prod = _f(prod, "nfe:vProd")
-        v_frete = _f(prod, "nfe:vFrete")
-        v_seg = _f(prod, "nfe:vSeg")
-        v_outro = _f(prod, "nfe:vOutro")
-        v_desc = _f(prod, "nfe:vDesc")
-        valor_operacao = v_prod + v_frete + v_seg + v_outro - v_desc
-        aliquota = 0.0
+    v_prod = _f(prod, "nfe:vProd")
+    v_frete = _f(prod, "nfe:vFrete")
+    v_seg = _f(prod, "nfe:vSeg")
+    v_outro = _f(prod, "nfe:vOutro")
+    v_desc = _f(prod, "nfe:vDesc")
+    valor_operacao = v_prod + v_frete + v_seg + v_outro - v_desc
+
+    icms_destacado = v_icms is not None
+    # Alíquota EFETIVA sobre o valor total do item — não sobre uma eventual
+    # base reduzida (pRedBC), para não aplicar a redução em dobro.
+    aliquota = (v_icms / valor_operacao) if (icms_destacado and valor_operacao > 0) else 0.0
+
+    convenio_5291 = nota_convenio_5291 and p_red_bc is not None
 
     crt = _t(emit, "nfe:CRT")
 
@@ -115,6 +136,8 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str) -> ItemDifal:
         aliquota_interestadual=aliquota,
         icms_destacado=icms_destacado,
         substituicao_tributaria=st,
+        reducao_base_convenio_5291=convenio_5291,
+        percentual_reducao_bc=p_red_bc,
         ind_final=_t(ide, "nfe:indFinal", "") or "",
     )
 
@@ -132,8 +155,9 @@ def parse_nfe_xml(path: Path, arquivo_nome: str | None = None) -> list[ItemDifal
     ide = inf_nfe.find("nfe:ide", NS)
     emit = inf_nfe.find("nfe:emit", NS)
     dest = inf_nfe.find("nfe:dest", NS)
+    nota_convenio_5291 = _nota_menciona_convenio_5291(inf_nfe)
 
     itens = []
     for det in inf_nfe.findall("nfe:det", NS):
-        itens.append(_extrai_item(det, ide, emit, dest, arquivo_nome or path.name, chave))
+        itens.append(_extrai_item(det, ide, emit, dest, arquivo_nome or path.name, chave, nota_convenio_5291))
     return itens

@@ -46,7 +46,11 @@ from src.irpj_csll.validator import validar_trimestre_completo
 from src.irpj_csll.writer import atualizar_template as atualizar_template_irpj_csll
 
 from src.tributofacil.difal_bahia.xml_parser import parse_nfe_xml
-from src.tributofacil.difal_bahia.calculator import calcular_difal_item
+from src.tributofacil.difal_bahia.calculator import (
+    calcular_difal_item,
+    ALIQUOTA_INTERNA_BA,
+    ALIQUOTA_INTERNA_CONVENIO_5291,
+)
 from src.tributofacil.difal_bahia.writer import gerar_excel as gerar_excel_difal_bahia
 
 app = FastAPI(title="Apuração PIS/COFINS")
@@ -559,7 +563,13 @@ async def tributofacil_difal_bahia_processar(arquivos: list[UploadFile] = File(.
                         f"{arquivo.filename} (NF {item.numero_nf}): UF de destino é "
                         f"{item.uf_destino or '(vazio)'}, não BA — incluído mesmo assim, revisar."
                     )
-                res = calcular_difal_item(item.valor_operacao, item.aliquota_interestadual, item.substituicao_tributaria)
+                aliquota_interna = (
+                    ALIQUOTA_INTERNA_CONVENIO_5291 if item.reducao_base_convenio_5291 else ALIQUOTA_INTERNA_BA
+                )
+                res = calcular_difal_item(
+                    item.valor_operacao, item.aliquota_interestadual, item.substituicao_tributaria,
+                    aliquota_interna=aliquota_interna,
+                )
                 linhas.append((item, res))
 
         if not linhas:
