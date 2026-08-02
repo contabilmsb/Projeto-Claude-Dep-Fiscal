@@ -569,6 +569,7 @@ async def tributofacil_difal_bahia_processar(arquivos: list[UploadFile] = File(.
                 res = calcular_difal_item(
                     item.valor_operacao, item.aliquota_interestadual, item.substituicao_tributaria,
                     aliquota_interna=aliquota_interna,
+                    aliquota_interestadual_referencia=item.aliquota_interestadual_referencia,
                 )
                 linhas.append((item, res))
 

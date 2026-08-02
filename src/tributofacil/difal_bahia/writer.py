@@ -18,19 +18,34 @@ COLUNAS = [
     ("Arquivo", 24), ("Chave NF-e", 26), ("Número NF", 10), ("Emissão", 12),
     ("CNPJ Emitente", 16), ("Emitente", 34), ("UF Origem", 8), ("UF Destino", 8),
     ("Regime", 16), ("CFOP", 8), ("Item", 6), ("Descrição", 32),
-    ("Valor Operação", 14), ("Alíq. Interestadual", 12), ("ICMS Interestadual", 14),
-    ("Base Reduzida", 14), ("Alíq. Interna BA", 12), ("Base Reajustada", 14),
-    ("Diferença Alíquotas", 12), ("DIFAL Devido", 14), ("Fórmula", 10), ("Observações", 40),
+    ("Valor Operação", 14), ("Alíq. Interestadual", 12), ("Alíq. Interestadual Ref.", 12),
+    ("ICMS Interestadual", 14), ("Base Reduzida", 14), ("Alíq. Interna BA", 12), ("Base Reajustada", 14),
+    ("Diferença Alíquotas", 12), ("DIFAL Devido", 14), ("Fórmula", 10), ("Observações", 44),
 ]
 
-COLS_MOEDA = {13, 15, 16, 18, 20}
-COLS_PERCENTUAL = {14, 17, 19}
+COLS_MOEDA = {13, 16, 17, 19, 21}
+COLS_PERCENTUAL = {14, 15, 18, 20}
 
 
 def _observacoes(item: ItemDifal) -> str:
     obs = []
     if not item.icms_destacado:
-        obs.append("Sem ICMS destacado (Simples Nacional) — alíquota interestadual assumida em 0%")
+        if item.percentual_credito_simples is not None:
+            obs.append(
+                f"Simples Nacional (CSOSN com permissão de crédito) — extraído {item.percentual_credito_simples:.2f}% "
+                f"de ICMS embutido no preço (art. 23 da LC 123/2006); diferença calculada com a alíquota "
+                f"interestadual constitucional de {item.aliquota_interestadual_referencia:.2%} "
+                f"(Res. Senado 22/89{'/13/2012' if item.aliquota_interestadual_referencia == 0.04 else ''})."
+            )
+        else:
+            obs.append(
+                f"Simples Nacional sem percentual de crédito de ICMS informado na nota (CSOSN sem permissão de "
+                f"crédito, ou campo não preenchido) — ICMS embutido assumido em 0% (posição conservadora); "
+                f"diferença calculada com a alíquota interestadual constitucional de "
+                f"{item.aliquota_interestadual_referencia:.2%} (Res. Senado 22/89"
+                f"{'/13/2012' if item.aliquota_interestadual_referencia == 0.04 else ''}), independente do regime "
+                f"do remetente."
+            )
     if item.substituicao_tributaria:
         obs.append("ICMS-ST identificado no XML — fórmula de DIFAL-ST aplicada")
     if item.reducao_base_convenio_5291:
@@ -77,9 +92,10 @@ def gerar_excel(linhas: list[tuple[ItemDifal, ResultadoDifalItem]], avisos: list
             item.arquivo, item.chave_nfe, item.numero_nf, (item.data_emissao or "")[:10],
             item.cnpj_emitente, item.nome_emitente, item.uf_origem, item.uf_destino,
             item.regime_emitente, item.cfop, item.n_item, item.descricao_produto,
-            round(item.valor_operacao, 2), res.aliquota_interestadual, round(res.icms_interestadual, 2),
-            round(res.base_reduzida, 2), res.aliquota_interna, round(res.base_reajustada, 2),
-            res.diferenca_aliquotas, round(res.difal, 2), res.formula.upper(), _observacoes(item),
+            round(item.valor_operacao, 2), res.aliquota_interestadual, res.aliquota_interestadual_referencia,
+            round(res.icms_interestadual, 2), round(res.base_reduzida, 2), res.aliquota_interna,
+            round(res.base_reajustada, 2), res.diferenca_aliquotas, round(res.difal, 2),
+            res.formula.upper(), _observacoes(item),
         ]
         for col, val in enumerate(valores, start=1):
             cell = ws.cell(row=row, column=col, value=val)
@@ -92,8 +108,8 @@ def gerar_excel(linhas: list[tuple[ItemDifal, ResultadoDifalItem]], avisos: list
 
     total_row = row
     ws.cell(row=total_row, column=1, value=f"TOTAL — {len(linhas)} item(ns)").font = Font(bold=True)
-    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=19)
-    tot_cell = ws.cell(row=total_row, column=20, value=round(total_difal, 2))
+    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=20)
+    tot_cell = ws.cell(row=total_row, column=21, value=round(total_difal, 2))
     tot_cell.font = Font(bold=True)
     tot_cell.number_format = "#,##0.00"
 

@@ -29,7 +29,8 @@ ALIQUOTA_INTERNA_CONVENIO_5291 = 0.056
 @dataclass
 class ResultadoDifalItem:
     valor_operacao: float
-    aliquota_interestadual: float
+    aliquota_interestadual: float               # usada para extrair o ICMS "por dentro" do valor da nota
+    aliquota_interestadual_referencia: float    # usada na diferença final (Res. Senado 22/89 e 13/2012)
     icms_interestadual: float
     base_reduzida: float
     aliquota_interna: float
@@ -41,19 +42,31 @@ class ResultadoDifalItem:
 
 def calcular_difal_item(valor_operacao: float, aliquota_interestadual: float,
                          substituicao_tributaria: bool,
-                         aliquota_interna: float = ALIQUOTA_INTERNA_BA) -> ResultadoDifalItem:
+                         aliquota_interna: float = ALIQUOTA_INTERNA_BA,
+                         aliquota_interestadual_referencia: float | None = None) -> ResultadoDifalItem:
     """
     Calcula o DIFAL de um item conforme a fórmula normal (base dupla por
     dentro) ou a fórmula de substituição tributária, a depender de
     `substituicao_tributaria`.
+
+    `aliquota_interestadual` extrai o ICMS embutido no valor da nota (no
+    Regime Normal, é a própria alíquota efetivamente destacada; no Simples
+    Nacional, é o percentual de crédito do art. 23 da LC 123/2006, ou 0%
+    quando não informado). `aliquota_interestadual_referencia` é a taxa
+    usada na diferença final — por padrão, igual à primeira, mas deve ser
+    informada separadamente quando a nota não traz ICMS próprio destacado,
+    caso em que a alíquota interestadual constitucional (Res. Senado 22/89
+    e 13/2012) não pode ser lida diretamente do XML.
     """
     if not (0 <= aliquota_interna < 1):
         raise ValueError("Alíquota interna deve estar entre 0% e 100% (exclusive).")
+    if aliquota_interestadual_referencia is None:
+        aliquota_interestadual_referencia = aliquota_interestadual
 
     icms_interestadual = valor_operacao * aliquota_interestadual
     base_reduzida = valor_operacao - icms_interestadual
     base_reajustada = base_reduzida / (1 - aliquota_interna)
-    diferenca = aliquota_interna - aliquota_interestadual
+    diferenca = aliquota_interna - aliquota_interestadual_referencia
 
     if substituicao_tributaria:
         difal = base_reajustada * aliquota_interna - icms_interestadual
@@ -65,6 +78,7 @@ def calcular_difal_item(valor_operacao: float, aliquota_interestadual: float,
     return ResultadoDifalItem(
         valor_operacao=valor_operacao,
         aliquota_interestadual=aliquota_interestadual,
+        aliquota_interestadual_referencia=aliquota_interestadual_referencia,
         icms_interestadual=icms_interestadual,
         base_reduzida=base_reduzida,
         aliquota_interna=aliquota_interna,

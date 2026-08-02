@@ -976,9 +976,12 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         <div class="section-label">DIFAL de Compras — Estado da Bahia</div>
         <p style="font-size:12px;color:var(--gray600);line-height:1.6;margin:0;">
           Envie os arquivos XML das NF-e de compra interestadual destinadas a uso, consumo ou ativo imobilizado.
-          O sistema lê a alíquota interestadual e o regime do emitente diretamente de cada XML — quando não há
-          ICMS destacado (Simples Nacional), assume alíquota interestadual de 0%. O DIFAL é calculado com a
-          alíquota interna da Bahia (20,5%), pela fórmula de base dupla "por dentro" da Lei nº 7.014/1996,
+          O sistema lê o ICMS destacado e o regime do emitente diretamente de cada XML. Para fornecedores do
+          Simples Nacional (sem ICMS próprio destacado), usa o percentual de crédito informado na nota (art. 23
+          da LC 123/2006, ou 0% quando não informado) só para extrair o imposto embutido no preço — a alíquota
+          interestadual de referência da diferença final continua sendo a constitucional (7%/12%/4%, Res. Senado
+          22/89 e 13/2012 conforme a UF de origem), independente do regime do remetente. O DIFAL é calculado com
+          a alíquota interna da Bahia (20,5%), pela fórmula de base dupla "por dentro" da Lei nº 7.014/1996,
           art. 17, XI e §6º (com fórmula específica para itens sujeitos à substituição tributária). Itens com
           redução de base amparada pelo Convênio ICMS 52/91 (identificado nas Informações Complementares da nota)
           usam a alíquota interna reduzida de 5,60% reconhecida pela Bahia (Art. 266 do RICMS-BA) — veja a coluna

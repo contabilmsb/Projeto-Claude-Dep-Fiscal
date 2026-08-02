@@ -5,17 +5,32 @@ destinadas ao Estado da Bahia (uso, consumo ou ativo imobilizado).
 Base legal: Lei nº 7.014/1996, art. 4º XV e art. 17 XI e §6º.
 
 Para cada item (<det>) da NF-e, extrai o valor da operação (vProd +
-acessórios) e a alíquota interestadual EFETIVA (ICMS destacado / valor da
-operação):
-  - Quando o item tem ICMS próprio destacado (vICMS, em ICMS00, ICMS10,
-    ICMS20 etc.): a alíquota efetiva é calculada sobre o valor total do
-    item, não sobre uma eventual base reduzida — isso evita duplicar uma
-    redução de base que já está embutida no vICMS.
-  - Se o item é do Simples Nacional sem destaque de ICMS próprio
-    (ICMSSN101, ICMSSN102, ICMSSN103, ICMSSN300, ICMSSN400): assume
-    alíquota interestadual de 0%.
+acessórios) e as alíquotas relevantes para a fórmula de "base dupla por
+dentro":
+
+  - Regime Normal, com ICMS próprio destacado (vICMS, em ICMS00, ICMS10,
+    ICMS20 etc.): a alíquota efetiva (usada tanto para extrair o ICMS
+    embutido quanto na diferença final) é vICMS / valor do item — sobre o
+    valor total, não sobre uma eventual base reduzida, para não duplicar
+    uma redução de base que já está embutida no vICMS.
+
+  - Simples Nacional, sem ICMS próprio destacado (grupo ICMSSNxxx): o
+    fornecedor não recolhe ICMS pela sistemática normal, mas o art. 23 da
+    LC 123/2006 o obriga a informar, quando aplicável (CSOSN 101/201), o
+    percentual de crédito de ICMS que o destinatário pode aproveitar
+    (campo estruturado pCredSN) — esse percentual é o que se extrai "por
+    dentro" do valor da nota (ou 0%, de forma conservadora, quando o
+    CSOSN não permite crédito ou o campo não vem informado). Isso NÃO
+    substitui a alíquota interestadual de referência usada na diferença
+    final: essa é constitucional (Resolução do Senado nº 22/89, com a
+    alíquota de 4% da Resolução nº 13/2012 para bens importados/com
+    conteúdo de importação > 40%) e vale igual para qualquer regime do
+    remetente — por isso é sempre calculada a partir das UFs de origem/
+    destino quando a nota não traz ICMS próprio destacado.
+
   - Sinaliza substituição tributária quando há vBCST/pICMSST/vICMSST no
     item, para aplicar a fórmula de DIFAL-ST em vez da fórmula normal.
+
   - Sinaliza itens com redução de base do ICMS amparada pelo Convênio
     ICMS 52/91 (identificado via menção ao convênio nas Informações
     Complementares da nota, combinada com a presença de pRedBC no item):
@@ -32,6 +47,22 @@ from pathlib import Path
 NS = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
 
 _RE_CONVENIO_5291 = re.compile(r"conv[eê]nio\s*(?:icms)?\s*n?[o°º]?\.?\s*52[\s/.\-]*91", re.IGNORECASE)
+
+# Resolução do Senado Federal nº 22/1989 — alíquota interestadual de referência
+# do ICMS, por região da UF de origem.
+_REGIAO_UF = {
+    "AC": "N", "AP": "N", "AM": "N", "PA": "N", "RO": "N", "RR": "N", "TO": "N",
+    "AL": "NE", "BA": "NE", "CE": "NE", "MA": "NE", "PB": "NE", "PE": "NE", "PI": "NE", "RN": "NE", "SE": "NE",
+    "DF": "CO", "GO": "CO", "MT": "CO", "MS": "CO",
+    "ES": "ES",
+    "SP": "SE", "RJ": "SE", "MG": "SE",
+    "PR": "S", "SC": "S", "RS": "S",
+}
+_REGIOES_DESTINO_ALIQ_7 = {"N", "NE", "CO", "ES"}
+# Resolução do Senado Federal nº 13/2012 — 4% para bens/mercadorias
+# importados do exterior ou com conteúdo de importação > 40% (campo `orig`
+# do ICMS: 1, 2, 3, 6, 7 ou 8).
+_ORIG_IMPORTADO_4PCT = {"1", "2", "3", "6", "7", "8"}
 
 
 def _t(el, path: str, default: str | None = None) -> str | None:
@@ -66,8 +97,10 @@ class ItemDifal:
     n_item: str
     descricao_produto: str
     valor_operacao: float          # vProd + acessórios (frete/seguro/outras despesas - desconto)
-    aliquota_interestadual: float  # efetiva: vICMS destacado / valor_operacao (decimal, ex.: 0.07)
+    aliquota_interestadual: float  # taxa usada para extrair o ICMS "por dentro" da nota (decimal)
+    aliquota_interestadual_referencia: float  # taxa constitucional (Res. 22/89) usada na diferença final
     icms_destacado: bool           # False quando não há ICMS próprio destacado no XML (Simples Nacional)
+    percentual_credito_simples: float | None  # pCredSN informado pelo Simples Nacional (CSOSN 101/201), se houver
     substituicao_tributaria: bool
     reducao_base_convenio_5291: bool  # base de ICMS reduzida ao amparo do Convênio ICMS 52/91
     percentual_reducao_bc: float | None  # pRedBC do item, quando houver (informativo)
@@ -84,6 +117,19 @@ def _nota_menciona_convenio_5291(inf_nfe) -> bool:
     return bool(_RE_CONVENIO_5291.search(texto))
 
 
+def _aliquota_referencia_resolucao_2289(uf_origem: str, uf_destino: str, orig_mercadoria: str | None) -> float:
+    """Alíquota interestadual constitucional (Res. Senado 22/89 e 13/2012),
+    usada como referência quando a nota não traz ICMS próprio destacado
+    (Simples Nacional) — independe do regime tributário do remetente."""
+    if orig_mercadoria in _ORIG_IMPORTADO_4PCT:
+        return 0.04
+    regiao_origem = _REGIAO_UF.get(uf_origem)
+    regiao_destino = _REGIAO_UF.get(uf_destino)
+    if regiao_origem in ("S", "SE") and regiao_destino in _REGIOES_DESTINO_ALIQ_7:
+        return 0.07
+    return 0.12
+
+
 def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str, nota_convenio_5291: bool) -> ItemDifal:
     prod = det.find("nfe:prod", NS)
     imposto = det.find("nfe:imposto", NS)
@@ -93,13 +139,19 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str, nota_convenio_5
     v_icms = None
     st = False
     p_red_bc = None
+    p_cred_sn = None
+    orig_mercadoria = None
     if icms_node is not None:
+        orig_mercadoria = _t(icms_node, "nfe:orig")
         v_icms_txt = _t(icms_node, "nfe:vICMS")
         if v_icms_txt is not None:
             v_icms = float(v_icms_txt)
         p_red_bc_txt = _t(icms_node, "nfe:pRedBC")
         if p_red_bc_txt is not None:
             p_red_bc = float(p_red_bc_txt)
+        p_cred_sn_txt = _t(icms_node, "nfe:pCredSN")
+        if p_cred_sn_txt is not None:
+            p_cred_sn = float(p_cred_sn_txt)
         if _t(icms_node, "nfe:vBCST") or _t(icms_node, "nfe:pICMSST") or _t(icms_node, "nfe:vICMSST"):
             st = True
 
@@ -111,9 +163,22 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str, nota_convenio_5
     valor_operacao = v_prod + v_frete + v_seg + v_outro - v_desc
 
     icms_destacado = v_icms is not None
-    # Alíquota EFETIVA sobre o valor total do item — não sobre uma eventual
-    # base reduzida (pRedBC), para não aplicar a redução em dobro.
-    aliquota = (v_icms / valor_operacao) if (icms_destacado and valor_operacao > 0) else 0.0
+    uf_origem = _t(emit, "nfe:enderEmit/nfe:UF", "") or ""
+    uf_destino = _t(dest, "nfe:enderDest/nfe:UF", "") or ""
+
+    if icms_destacado:
+        # Regime Normal: a própria nota já traz o ICMS efetivamente pago —
+        # a mesma alíquota efetiva vale tanto para a extração "por dentro"
+        # quanto para a diferença final.
+        aliquota = (v_icms / valor_operacao) if valor_operacao > 0 else 0.0
+        aliquota_referencia = aliquota
+    else:
+        # Simples Nacional: usa o crédito informado (art. 23, LC 123/2006)
+        # só para extrair o ICMS embutido no preço; a alíquota de
+        # referência da diferença é sempre a constitucional (Res. 22/89),
+        # independente do regime do remetente.
+        aliquota = (p_cred_sn / 100.0) if p_cred_sn is not None else 0.0
+        aliquota_referencia = _aliquota_referencia_resolucao_2289(uf_origem, uf_destino, orig_mercadoria)
 
     convenio_5291 = nota_convenio_5291 and p_red_bc is not None
 
@@ -126,15 +191,17 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str, nota_convenio_5
         data_emissao=(_t(ide, "nfe:dhEmi") or _t(ide, "nfe:dEmi") or ""),
         cnpj_emitente=_t(emit, "nfe:CNPJ", "") or "",
         nome_emitente=_t(emit, "nfe:xNome", "") or "",
-        uf_origem=_t(emit, "nfe:enderEmit/nfe:UF", "") or "",
-        uf_destino=_t(dest, "nfe:enderDest/nfe:UF", "") or "",
+        uf_origem=uf_origem,
+        uf_destino=uf_destino,
         regime_emitente=_regime(crt),
         cfop=_t(prod, "nfe:CFOP", "") or "",
         n_item=det.get("nItem", ""),
         descricao_produto=_t(prod, "nfe:xProd", "") or "",
         valor_operacao=valor_operacao,
         aliquota_interestadual=aliquota,
+        aliquota_interestadual_referencia=aliquota_referencia,
         icms_destacado=icms_destacado,
+        percentual_credito_simples=p_cred_sn,
         substituicao_tributaria=st,
         reducao_base_convenio_5291=convenio_5291,
         percentual_reducao_bc=p_red_bc,
