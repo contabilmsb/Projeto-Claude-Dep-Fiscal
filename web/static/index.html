@@ -2066,6 +2066,7 @@ function icRenderMes(data) {
     ['Base Revenda (reaproveitada do PIS/COFINS)', c.revenda_base],
     ['Aplicação Financeira', c.aplicacao_financeira],
     ['Variação Cambial Ativa', c.variacao_cambial],
+    ['Juros Recebidos', c.juros_recebidos],
     ['IRRF s/ Aplicação Financeira', c.irrf_aplicacao],
   ];
   document.getElementById('ic-cards-mes').innerHTML = cards.map(([label, v]) => `
@@ -2353,6 +2354,7 @@ async function expIcCarregarMes(sessionId) {
       { label: 'Base Revenda (reaproveitada PIS/COFINS)', v: c.revenda_base },
       { label: 'Aplicação Financeira', v: c.aplicacao_financeira },
       { label: 'Variação Cambial Ativa', v: c.variacao_cambial },
+      { label: 'Juros Recebidos', v: c.juros_recebidos },
       { label: 'IRRF s/ Aplicação Financeira', v: c.irrf_aplicacao },
     ]);
   } catch (e) {
