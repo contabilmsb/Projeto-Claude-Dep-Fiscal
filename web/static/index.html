@@ -2078,13 +2078,20 @@ function icRenderMes(data) {
   const am = data.apuracao_mes;
   if (am) {
     document.getElementById('ic-mes-table-irpj').innerHTML = icLinhasTabela([
+      ['Base Revenda', am.irpj.base_revenda],
+      ['Base Serviços', am.irpj.base_servicos],
+      ['Base Outras Receitas', am.irpj.base_outras_receitas],
       ['Base de Cálculo', am.irpj.base_calculo],
       ['IRPJ Apurado (15%)', am.irpj.valor_apurado],
       ['Adicional (10%)', am.irpj.adicional],
+      ['IRPJ Devido', am.irpj.valor_devido],
       ['(-) Deduções (IRRF cliente + aplicação)', am.irpj.deducoes],
       ['IRPJ A RECOLHER (estimado)', am.irpj.valor_a_pagar],
     ]);
     document.getElementById('ic-mes-table-csll').innerHTML = icLinhasTabela([
+      ['Base Revenda', am.csll.base_revenda],
+      ['Base Serviços', am.csll.base_servicos],
+      ['Base Outras Receitas', am.csll.base_outras_receitas],
       ['Base de Cálculo', am.csll.base_calculo],
       ['CSLL Apurada (9%)', am.csll.valor_apurado],
       ['(-) Deduções (CSLL Retida)', am.csll.deducoes],
