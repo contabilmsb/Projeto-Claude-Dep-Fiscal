@@ -736,6 +736,14 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         <h4>Componentes do Mês — <span id="exp-ic-mes-comp">—</span></h4>
         <div id="exp-ic-mes-rows"></div>
       </div>
+      <div class="exp-summary-card">
+        <h4>IRPJ Estimado (informativo)</h4>
+        <div id="exp-ic-mes-irpj-rows"></div>
+      </div>
+      <div class="exp-summary-card">
+        <h4>CSLL Estimada (informativo)</h4>
+        <div id="exp-ic-mes-csll-rows"></div>
+      </div>
     </div>
     <div class="export-right">
       <div class="export-icon">📅</div>
@@ -2364,6 +2372,23 @@ async function expIcCarregarMes(sessionId) {
       { label: 'Juros Recebidos', v: c.juros_recebidos },
       { label: 'IRRF s/ Aplicação Financeira', v: c.irrf_aplicacao },
     ]);
+
+    const am = data.apuracao_mes;
+    if (am) {
+      document.getElementById('exp-ic-mes-irpj-rows').innerHTML = _expIcRows([
+        { label: 'Base de Cálculo', v: am.irpj.base_calculo },
+        { label: 'Valor Apurado (15%)', v: am.irpj.valor_apurado },
+        { label: 'Adicional (10%)', v: am.irpj.adicional },
+        { label: 'Deduções', v: am.irpj.deducoes, cls: 'negative' },
+        { label: 'A RECOLHER (estimado)', v: am.irpj.valor_a_pagar, cls: 'total positive' },
+      ]);
+      document.getElementById('exp-ic-mes-csll-rows').innerHTML = _expIcRows([
+        { label: 'Base de Cálculo', v: am.csll.base_calculo },
+        { label: 'Valor Apurado (9%)', v: am.csll.valor_apurado },
+        { label: 'Deduções', v: am.csll.deducoes, cls: 'negative' },
+        { label: 'A RECOLHER (estimado)', v: am.csll.valor_a_pagar, cls: 'total positive' },
+      ]);
+    }
   } catch (e) {
     showToast('⚠ Erro ao carregar mês: ' + e.message, 'warn');
   }
