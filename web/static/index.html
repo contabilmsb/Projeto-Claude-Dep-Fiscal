@@ -910,17 +910,6 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <div id="ic-trimestre-wrap" style="display:none;flex-direction:column;gap:20px;">
         <div class="section-label">Apuração Trimestral — <span id="ic-trim-label"></span></div>
 
-        <div class="charts-grid">
-          <div class="chart-card">
-            <h3>Composição da Base (IRPJ)</h3>
-            <div class="chart-wrap"><canvas id="ic-chart-donut"></canvas></div>
-          </div>
-          <div class="chart-card">
-            <h3>Apurado · Deduções · A Pagar</h3>
-            <div class="chart-wrap"><canvas id="ic-chart-bar"></canvas></div>
-          </div>
-        </div>
-
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
           <div class="chart-card">
             <h3>IRPJ</h3>
@@ -929,6 +918,17 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
           <div class="chart-card">
             <h3>CSLL</h3>
             <table class="detail-table" id="ic-table-csll"></table>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3>Composição da Base (IRPJ)</h3>
+            <div class="chart-wrap"><canvas id="ic-chart-donut"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>Apurado · Deduções · A Pagar</h3>
+            <div class="chart-wrap"><canvas id="ic-chart-bar"></canvas></div>
           </div>
         </div>
 
