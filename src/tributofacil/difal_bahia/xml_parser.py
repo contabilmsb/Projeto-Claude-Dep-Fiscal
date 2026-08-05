@@ -4,15 +4,21 @@ destinadas ao Estado da Bahia (uso, consumo ou ativo imobilizado).
 
 Base legal: Lei nº 7.014/1996, art. 4º XV e art. 17 XI e §6º.
 
-Para cada item (<det>) da NF-e, extrai o valor da operação (vProd +
-acessórios) e as alíquotas relevantes para a fórmula de "base dupla por
-dentro":
+Para cada item (<det>) da NF-e, extrai o valor da operação e as
+alíquotas relevantes para a fórmula de "base dupla por dentro":
 
   - Regime Normal, com ICMS próprio destacado (vICMS, em ICMS00, ICMS10,
-    ICMS20 etc.): a alíquota efetiva (usada tanto para extrair o ICMS
-    embutido quanto na diferença final) é vICMS / valor do item — sobre o
-    valor total, não sobre uma eventual base reduzida, para não duplicar
-    uma redução de base que já está embutida no vICMS.
+    ICMS20 etc.): por padrão usa a própria base do ICMS (vBC) como valor
+    da operação, e a alíquota efetiva é vICMS / vBC — a mesma base que o
+    remetente usou para calcular o imposto. Isso importa porque vBC pode
+    ser maior que vProd (ex.: quando o IPI integra a base do ICMS por a
+    operação não ser entre contribuintes para revenda/industrialização,
+    Art. 13 §2º da LC 87/96) — usar vProd nesses casos infla artificial-
+    mente a alíquota efetiva extraída. A exceção é quando há redução de
+    base (pRedBC): a Bahia não reconhece a maioria das reduções para fins
+    de DIFAL (usa-se o valor comercial pleno, vProd + acessórios, com a
+    alíquota interna cheia), salvo os benefícios que ela mesma incorpora
+    ao seu próprio regulamento — hoje, o Convênio ICMS 52/91 (ver abaixo).
 
   - Simples Nacional, sem ICMS próprio destacado (grupo ICMSSNxxx): o
     fornecedor não recolhe ICMS pela sistemática normal, mas o art. 23 da
@@ -96,7 +102,8 @@ class ItemDifal:
     cfop: str
     n_item: str
     descricao_produto: str
-    valor_operacao: float          # vProd + acessórios (frete/seguro/outras despesas - desconto)
+    valor_operacao: float          # base efetivamente usada no cálculo (vBC, ou vProd + acessórios nos casos de redução)
+    valor_comercial: float         # vProd + acessórios (frete/seguro/outras despesas - desconto), sempre informativo
     aliquota_interestadual: float  # taxa usada para extrair o ICMS "por dentro" da nota (decimal)
     aliquota_interestadual_referencia: float  # taxa constitucional (Res. 22/89) usada na diferença final
     icms_destacado: bool           # False quando não há ICMS próprio destacado no XML (Simples Nacional)
@@ -136,6 +143,7 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str, nota_convenio_5
     icms = imposto.find("nfe:ICMS", NS) if imposto is not None else None
     icms_node = next(iter(icms), None) if icms is not None else None
 
+    v_bc = None
     v_icms = None
     st = False
     p_red_bc = None
@@ -143,6 +151,9 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str, nota_convenio_5
     orig_mercadoria = None
     if icms_node is not None:
         orig_mercadoria = _t(icms_node, "nfe:orig")
+        v_bc_txt = _t(icms_node, "nfe:vBC")
+        if v_bc_txt is not None:
+            v_bc = float(v_bc_txt)
         v_icms_txt = _t(icms_node, "nfe:vICMS")
         if v_icms_txt is not None:
             v_icms = float(v_icms_txt)
@@ -160,16 +171,27 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str, nota_convenio_5
     v_seg = _f(prod, "nfe:vSeg")
     v_outro = _f(prod, "nfe:vOutro")
     v_desc = _f(prod, "nfe:vDesc")
-    valor_operacao = v_prod + v_frete + v_seg + v_outro - v_desc
+    valor_comercial = v_prod + v_frete + v_seg + v_outro - v_desc
 
     icms_destacado = v_icms is not None
     uf_origem = _t(emit, "nfe:enderEmit/nfe:UF", "") or ""
     uf_destino = _t(dest, "nfe:enderDest/nfe:UF", "") or ""
+    convenio_5291 = nota_convenio_5291 and p_red_bc is not None
+    reducao_nao_reconhecida = (p_red_bc is not None) and not convenio_5291
 
     if icms_destacado:
-        # Regime Normal: a própria nota já traz o ICMS efetivamente pago —
-        # a mesma alíquota efetiva vale tanto para a extração "por dentro"
-        # quanto para a diferença final.
+        if convenio_5291 or reducao_nao_reconhecida:
+            # Base reduzida na origem: a Bahia não reconhece a redução (ou,
+            # quando reconhece — Convênio 52/91 —, aplica sua própria
+            # alíquota interna reduzida sobre o valor pleno), então
+            # reconstrói o valor comercial total do item.
+            valor_operacao = valor_comercial
+        else:
+            # Usa a mesma base que o remetente usou para calcular o ICMS
+            # (pode ser maior que vProd quando o IPI integra a base —
+            # Art. 13 §2º da LC 87/96), para que a alíquota efetiva
+            # extraída "por dentro" reflete fielmente o que foi recolhido.
+            valor_operacao = v_bc if v_bc is not None else valor_comercial
         aliquota = (v_icms / valor_operacao) if valor_operacao > 0 else 0.0
         aliquota_referencia = aliquota
     else:
@@ -177,10 +199,9 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str, nota_convenio_5
         # só para extrair o ICMS embutido no preço; a alíquota de
         # referência da diferença é sempre a constitucional (Res. 22/89),
         # independente do regime do remetente.
+        valor_operacao = valor_comercial
         aliquota = (p_cred_sn / 100.0) if p_cred_sn is not None else 0.0
         aliquota_referencia = _aliquota_referencia_resolucao_2289(uf_origem, uf_destino, orig_mercadoria)
-
-    convenio_5291 = nota_convenio_5291 and p_red_bc is not None
 
     crt = _t(emit, "nfe:CRT")
 
@@ -198,6 +219,7 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str, nota_convenio_5
         n_item=det.get("nItem", ""),
         descricao_produto=_t(prod, "nfe:xProd", "") or "",
         valor_operacao=valor_operacao,
+        valor_comercial=valor_comercial,
         aliquota_interestadual=aliquota,
         aliquota_interestadual_referencia=aliquota_referencia,
         icms_destacado=icms_destacado,

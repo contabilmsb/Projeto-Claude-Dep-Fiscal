@@ -46,6 +46,13 @@ def _observacoes(item: ItemDifal) -> str:
                 f"{'/13/2012' if item.aliquota_interestadual_referencia == 0.04 else ''}), independente do regime "
                 f"do remetente."
             )
+    if item.icms_destacado and not item.percentual_reducao_bc and abs(item.valor_operacao - item.valor_comercial) > 0.01:
+        obs.append(
+            f"Base do ICMS de origem (vBC = {item.valor_operacao:,.2f}) difere do valor comercial do item "
+            f"({item.valor_comercial:,.2f}) — provavelmente inclui IPI ou outro acréscimo na base (Art. 13 §2º "
+            f"da LC 87/96); usada a base do ICMS para manter a alíquota efetiva consistente com o que foi "
+            f"recolhido na origem."
+        )
     if item.substituicao_tributaria:
         obs.append("ICMS-ST identificado no XML — fórmula de DIFAL-ST aplicada")
     if item.reducao_base_convenio_5291:
