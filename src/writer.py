@@ -96,7 +96,9 @@ def _atualizar_aba_cofins(sheet, resultado: ResultadoApuracao,
 
     if col is None:
         raise ValueError(
-            f"Coluna {target_month:02d}/{target_year} não encontrada na aba COFINS."
+            f"Arquivo Template: coluna do mês {target_month:02d}/{target_year} não encontrada na "
+            f"aba COFINS. Verifique se o Template selecionado é o correto e se já tem a coluna "
+            f"dessa competência preparada."
         )
 
     # Mapeamento: label parcial → valor a inserir
@@ -122,7 +124,11 @@ def _atualizar_aba_pis(sheet, resultado: ResultadoApuracao,
     p = resultado.pis
 
     if col is None:
-        raise ValueError(f"Coluna {target_month:02d}/{target_year} não encontrada na aba PIS.")
+        raise ValueError(
+            f"Arquivo Template: coluna do mês {target_month:02d}/{target_year} não encontrada na "
+            f"aba PIS. Verifique se o Template selecionado é o correto e se já tem a coluna dessa "
+            f"competência preparada."
+        )
 
     mappings = {
         "fluxus":       p.base_calculo,    # Base líquida na linha de receita
@@ -365,14 +371,14 @@ def atualizar_template(
         log["cofins_col"] = col
         log["cofins_insertions"] = ins
     else:
-        raise ValueError("Aba 'COFINS ' não encontrada no template.")
+        raise ValueError("Arquivo Template: aba 'COFINS ' não encontrada no arquivo selecionado.")
 
     if "PIS" in wb.sheetnames:
         ins, col = _atualizar_aba_pis(wb["PIS"], resultado, target_month, target_year, pis_col)
         log["pis_col"] = col
         log["pis_insertions"] = ins
     else:
-        raise ValueError("Aba 'PIS' não encontrada no template.")
+        raise ValueError("Arquivo Template: aba 'PIS' não encontrada no arquivo selecionado.")
 
     _criar_aba_consolidacao(wb, dados, resultado.competencia)
     _criar_aba_validacao(wb, alertas, resultado)

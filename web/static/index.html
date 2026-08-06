@@ -132,6 +132,8 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 .btn-primary:disabled { opacity: .35; cursor: not-allowed; }
 .btn-success { background: var(--green); color: #fff; }
 .btn-success:hover { background: #059669; }
+.btn-secondary { background: var(--gray100); color: var(--gray600); }
+.btn-secondary:hover:not(:disabled) { background: var(--gray200); }
 
 .progress-bar { height: 3px; background: var(--gray200); border-radius: 2px; overflow: hidden; display: none; }
 .progress-fill { height: 100%; background: var(--blue); animation: prog 1.5s ease-in-out infinite; }
@@ -443,6 +445,10 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           Processar Apuração
         </button>
+        <button class="btn btn-secondary" onclick="limparAnexos()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          Limpar Anexos
+        </button>
         <div id="upload-status" style="font-size:11px;color:var(--gray400);text-align:center;"></div>
       </div>
     </div>
@@ -479,6 +485,10 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         <button class="btn btn-primary" id="ic-btn-processar" onclick="icProcessar()" disabled>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           Processar
+        </button>
+        <button class="btn btn-secondary" onclick="icLimparAnexos()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          Limpar Anexos
         </button>
         <div id="ic-upload-status" style="font-size:11px;color:var(--gray400);text-align:center;"></div>
       </div>
@@ -1210,6 +1220,23 @@ function onFileSelected(key, input) {
   document.getElementById(`slot-name-${key}`).textContent = file.name;
   updateStatusBox();
   checkReady();
+}
+
+function limparAnexos() {
+  FILE_SLOTS.forEach(s => {
+    delete uploadedFiles[s.key];
+    const input = document.getElementById(`file-${s.key}`);
+    if (input) input.value = '';
+    const slotEl = document.getElementById(`slot-${s.key}`);
+    if (slotEl) slotEl.classList.remove('uploaded');
+    const nameEl = document.getElementById(`slot-name-${s.key}`);
+    if (nameEl) nameEl.textContent = 'Selecionar';
+  });
+  updateStatusBox();
+  checkReady();
+  const errEl = document.getElementById('error-msg');
+  if (errEl) errEl.style.display = 'none';
+  showToast('✓ Anexos limpos — selecione os arquivos novamente.', 'ok', 3000);
 }
 
 function checkReady() {
@@ -2278,6 +2305,23 @@ function icOnFileSelected(key, input) {
   document.getElementById(`ic-slot-name-${key}`).textContent = file.name;
   icUpdateStatusBox();
   icCheckReady();
+}
+
+function icLimparAnexos() {
+  IC_FILE_SLOTS.forEach(s => {
+    delete icUploadedFiles[s.key];
+    const input = document.getElementById(`ic-file-${s.key}`);
+    if (input) input.value = '';
+    const slotEl = document.getElementById(`ic-slot-${s.key}`);
+    if (slotEl) slotEl.classList.remove('uploaded');
+    const nameEl = document.getElementById(`ic-slot-name-${s.key}`);
+    if (nameEl) nameEl.textContent = 'Selecionar';
+  });
+  icUpdateStatusBox();
+  icCheckReady();
+  const errEl = document.getElementById('ic-error-msg');
+  if (errEl) errEl.style.display = 'none';
+  showToast('✓ Anexos limpos — selecione os arquivos novamente.', 'ok', 3000);
 }
 
 function icCheckReady() {

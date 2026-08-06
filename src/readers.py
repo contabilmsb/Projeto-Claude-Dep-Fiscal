@@ -164,15 +164,26 @@ def load_all(files: dict, estornos: list[str] | None = None) -> dict[str, pd.Dat
     ----------
     estornos : lista de NFs (9 dígitos) a excluir de todas as fontes antes do cálculo.
     """
-    dados = {
-        "recebidas":  load_recebidas(files["recebidas"]),
-        "cofins_ret": load_retencao(files["cofins_ret"], "cofins_retido"),
-        "pis_ret":    load_retencao(files["pis_ret"],    "pis_retido"),
-        "csll_ret":   load_retencao(files["csll_ret"],   "csll_retido"),
-        "irrf":       load_retencao(files["irrf"],       "irrf"),
-        "juros":      load_juros(files["juros"]),
-        "vendas":     load_vendas(files["vendas"]),
+    carregadores = {
+        "recebidas":  lambda: load_recebidas(files["recebidas"]),
+        "cofins_ret": lambda: load_retencao(files["cofins_ret"], "cofins_retido"),
+        "pis_ret":    lambda: load_retencao(files["pis_ret"],    "pis_retido"),
+        "csll_ret":   lambda: load_retencao(files["csll_ret"],   "csll_retido"),
+        "irrf":       lambda: load_retencao(files["irrf"],       "irrf"),
+        "juros":      lambda: load_juros(files["juros"]),
+        "vendas":     lambda: load_vendas(files["vendas"]),
     }
+    labels = {
+        "recebidas": "Recebidas", "cofins_ret": "COFINS Retido", "pis_ret": "PIS Retido",
+        "csll_ret": "CSLL Retida", "irrf": "IRRF", "juros": "Juros Recebidos", "vendas": "Vendas",
+    }
+    dados = {}
+    for key, carregar in carregadores.items():
+        try:
+            dados[key] = carregar()
+        except Exception as e:
+            nome_arquivo = Path(files[key]).name
+            raise ValueError(f"Arquivo {labels[key]} ({nome_arquivo}): {e}") from e
 
     if estornos:
         nfs = set(estornos)
