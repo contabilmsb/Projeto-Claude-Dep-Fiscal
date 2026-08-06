@@ -180,6 +180,20 @@ def apurar_mes(componente: ComponenteMes) -> tuple[ApuracaoTributo, ApuracaoTrib
     return _apurar([componente], cfg.LIMITE_ADICIONAL_MENSAL)
 
 
+def apurar_varios_meses(componentes: list[ComponenteMes]) -> tuple[ApuracaoTributo, ApuracaoTributo]:
+    """
+    Apuração informativa somando os componentes de vários meses (ex.: todas
+    as competências já processadas), com o limite do adicional de IRPJ
+    proporcional à quantidade de meses informada — mesma lógica de
+    `consolidar_trimestre`, generalizada para qualquer quantidade de meses.
+
+    Assim como `apurar_mes`, é apenas uma estimativa para acompanhamento —
+    o valor efetivamente devido é sempre apurado por trimestre-calendário.
+    """
+    limite = cfg.LIMITE_ADICIONAL_MENSAL * len(componentes)
+    return _apurar(componentes, limite)
+
+
 def consolidar_trimestre(ano: int, trimestre: int, meses: list[ComponenteMes]) -> ResultadoTrimestre:
     """
     Consolida os 3 meses de um trimestre-calendário e apura IRPJ e CSLL.

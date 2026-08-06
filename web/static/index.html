@@ -2064,8 +2064,8 @@ function icPreencherSelect() {
     const dt = s.created_at ? new Date(s.created_at).toLocaleDateString('pt-BR') : '';
     return `<option value="${s.id}">${s.competencia}${dt ? ' · ' + dt : ''}</option>`;
   }).join('');
-  el.innerHTML = '<option value="">— selecione —</option>' + opts;
-  if (icState.sessionId) el.value = icState.sessionId;
+  el.innerHTML = '<option value="">Todas as competências</option>' + opts;
+  el.value = icState.sessionId || '';
   document.getElementById('ic-modo-row').style.display = icState.sessoes.length ? 'flex' : 'none';
   document.getElementById('ic-period-row').style.display = (icState.sessoes.length && icState.modo !== 'trimestre') ? 'flex' : 'none';
   document.getElementById('ic-empty').style.display = icState.sessoes.length ? 'none' : 'flex';
@@ -2110,16 +2110,22 @@ async function icSelecionarTrimestre(valor) {
 }
 
 async function icTrocarPeriodo(sessionId) {
-  if (!sessionId) return;
   const sel = document.getElementById('ic-period-select');
-  if (sel) sel.value = sessionId;
+  if (sel) sel.value = sessionId || '';
   try {
-    // Sem login: só o resultado mais recente é público (mesma regra do dashboard PIS/COFINS)
-    const url = _isLoggedIn() ? `/irpj-csll/sessao/${sessionId}` : '/irpj-csll/ultimo-resultado';
+    // "" = Todas as competências (soma de todos os meses processados).
+    // Sem login: só o resultado mais recente é público (mesma regra do dashboard PIS/COFINS).
+    const url = !sessionId
+      ? '/irpj-csll/todas'
+      : (_isLoggedIn() ? `/irpj-csll/sessao/${sessionId}` : '/irpj-csll/ultimo-resultado');
     const res = await fetch(url, { headers: { 'X-Auth-Token': _getToken() } });
-    if (!res.ok) { showToast('⚠ Período não encontrado', 'warn', 3000); return; }
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      showToast('⚠ ' + (data?.detail || 'Período não encontrado'), 'warn', 3000);
+      return;
+    }
     const data = await res.json();
-    icState.sessionId = data.session_id || sessionId;
+    icState.sessionId = data.session_id || sessionId || '';
     icState.resultado = data;
     document.getElementById('ic-comp').textContent = data.competencia;
     icRenderMes(data);

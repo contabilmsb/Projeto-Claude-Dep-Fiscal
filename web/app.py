@@ -38,6 +38,7 @@ from src.irpj_csll.calculator import (
     calcular_mes as irpj_calcular_mes,
     consolidar_trimestre as irpj_consolidar_trimestre,
     apurar_mes as irpj_apurar_mes,
+    apurar_varios_meses as irpj_apurar_varios_meses,
     trimestre_de as irpj_trimestre_de,
     meses_do_trimestre as irpj_meses_do_trimestre,
     ComponenteMes as IrpjComponenteMes,
@@ -1025,6 +1026,47 @@ async def irpj_csll_ultimo_resultado():
         irpj_mes, csll_mes = irpj_apurar_mes(componente)
         resultado["apuracao_mes"] = {"irpj": asdict(irpj_mes), "csll": asdict(csll_mes)}
     return resultado
+
+
+@app.get("/irpj-csll/todas")
+async def irpj_csll_todas():
+    """
+    Soma os componentes de todas as competências já processadas e aplica a
+    apuração informativa com o limite do adicional de IRPJ proporcional ao
+    número de meses — público, somente leitura (mesma regra de
+    /irpj-csll/ultimo-resultado).
+    """
+    if _use_supabase():
+        sb = _get_supabase()
+        rows = sb.table(SESSIONS_IRPJ_CSLL_TABLE).select("resultado").execute()
+        resultados = [r["resultado"] for r in (rows.data or [])]
+    else:
+        resultados = [s["resultado"] for s in _sessions_irpj_csll.values()]
+
+    componentes = [
+        IrpjComponenteMes(**r["componente"]) for r in resultados if r.get("componente")
+    ]
+    if not componentes:
+        raise HTTPException(status_code=404, detail="Nenhuma competência processada ainda.")
+
+    irpj_total, csll_total = irpj_apurar_varios_meses(componentes)
+    componente_soma = {
+        "revenda_base": sum(c.revenda_base for c in componentes),
+        "servicos_base": sum(c.servicos_base for c in componentes),
+        "aplicacao_financeira": sum(c.aplicacao_financeira for c in componentes),
+        "variacao_cambial": sum(c.variacao_cambial for c in componentes),
+        "juros_recebidos": sum(c.juros_recebidos for c in componentes),
+        "ganho_capital": sum(c.ganho_capital for c in componentes),
+        "irrf_cliente": sum(c.irrf_cliente for c in componentes),
+        "irrf_aplicacao": sum(c.irrf_aplicacao for c in componentes),
+        "csll_retida": sum(c.csll_retida for c in componentes),
+    }
+
+    return {
+        "competencia": f"Todas as competências ({len(componentes)})",
+        "componente": componente_soma,
+        "apuracao_mes": {"irpj": asdict(irpj_total), "csll": asdict(csll_total)},
+    }
 
 
 @app.get("/irpj-csll/trimestres")
