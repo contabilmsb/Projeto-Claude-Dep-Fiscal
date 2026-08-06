@@ -2060,7 +2060,10 @@ async function icCarregarPeriodos() {
 
 function icPreencherSelect() {
   const el = document.getElementById('ic-period-select');
-  const opts = icState.sessoes.map(s => {
+  const sessoesOrdenadas = [...icState.sessoes].sort(
+    (a, b) => _competenciaParaOrdem(a.competencia) - _competenciaParaOrdem(b.competencia)
+  );
+  const opts = sessoesOrdenadas.map(s => {
     const dt = s.created_at ? new Date(s.created_at).toLocaleDateString('pt-BR') : '';
     return `<option value="${s.id}">${s.competencia}${dt ? ' · ' + dt : ''}</option>`;
   }).join('');
