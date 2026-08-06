@@ -1608,9 +1608,18 @@ async function carregarSessoes() {
   } catch(_) {}
 }
 
+// Ordena "MM/AAAA" cronologicamente crescente (mais antiga primeiro).
+function _competenciaParaOrdem(comp) {
+  const m = /^(\d{2})\/(\d{4})$/.exec(comp || '');
+  return m ? Number(m[2]) * 12 + Number(m[1]) : 0;
+}
+
 function _preencherSelects() {
-  const opts = _sessoes.length
-    ? _sessoes.map(s => {
+  const sessoesOrdenadas = [..._sessoes].sort(
+    (a, b) => _competenciaParaOrdem(a.competencia) - _competenciaParaOrdem(b.competencia)
+  );
+  const opts = sessoesOrdenadas.length
+    ? sessoesOrdenadas.map(s => {
         const dt = s.created_at
           ? new Date(s.created_at).toLocaleDateString('pt-BR')
           : '';
