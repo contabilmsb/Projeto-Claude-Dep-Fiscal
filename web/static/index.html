@@ -1120,15 +1120,35 @@ function doLogout() {
 const appState = { resultado: null, sessionId: null, sortKey: 'nf', sortAsc: true, charts: {}, alertNFs: new Set(), consolidacaoData: [] };
 
 const FILE_SLOTS = [
-  { key: 'template',   label: 'Template',        icon: '📋' },
-  { key: 'recebidas',  label: 'Recebidas',        icon: '💰' },
-  { key: 'cofins_ret', label: 'COFINS Retido',    icon: '📄' },
-  { key: 'pis_ret',    label: 'PIS Retido',       icon: '📄' },
-  { key: 'csll_ret',   label: 'CSLL Retida',      icon: '📄' },
-  { key: 'irrf',       label: 'IRRF',             icon: '📄' },
-  { key: 'juros',      label: 'Juros Recebidos',  icon: '📈' },
-  { key: 'vendas',     label: 'Vendas',           icon: '🏷️' },
+  { key: 'template',   label: 'Template',        icon: '📋', keyword: 'apuracao pis cofins' },
+  { key: 'recebidas',  label: 'Recebidas',        icon: '💰', keyword: 'recebidas' },
+  { key: 'cofins_ret', label: 'COFINS Retido',    icon: '📄', keyword: 'cofins' },
+  { key: 'pis_ret',    label: 'PIS Retido',       icon: '📄', keyword: 'pis' },
+  { key: 'csll_ret',   label: 'CSLL Retida',      icon: '📄', keyword: 'csll' },
+  { key: 'irrf',       label: 'IRRF',             icon: '📄', keyword: 'irrf' },
+  { key: 'juros',      label: 'Juros Recebidos',  icon: '📈', keyword: 'juros' },
+  { key: 'vendas',     label: 'Vendas',           icon: '🏷️', keyword: 'vendas' },
 ];
+
+// Remove acentos e caixa para comparar nome do arquivo com a palavra-chave esperada do campo.
+function _normalizarNome(s) {
+  const semCaixa = (s || '').toLowerCase().normalize('NFD');
+  let semAcento = '';
+  for (const ch of semCaixa) {
+    const code = ch.codePointAt(0);
+    if (code < 0x0300 || code > 0x036f) semAcento += ch;
+  }
+  return semAcento;
+}
+
+// Verifica se o nome do arquivo contém a palavra-chave do campo; se não, rejeita a seleção.
+function _validarArquivoSlot(slot, file, input) {
+  if (!slot || !slot.keyword) return true;
+  if (_normalizarNome(file.name).includes(_normalizarNome(slot.keyword))) return true;
+  input.value = '';
+  showToast(`⚠ Arquivo incorreto para "${slot.label}" — o nome do arquivo precisa conter "${slot.keyword}".`, 'warn', 6000);
+  return false;
+}
 
 const uploadedFiles = {};
 
@@ -1183,6 +1203,8 @@ function updateStatusBox() {
 function onFileSelected(key, input) {
   const file = input.files[0];
   if (!file) return;
+  const slot = FILE_SLOTS.find(s => s.key === key);
+  if (!_validarArquivoSlot(slot, file, input)) return;
   uploadedFiles[key] = file;
   document.getElementById(`slot-${key}`).classList.add('uploaded');
   document.getElementById(`slot-name-${key}`).textContent = file.name;
@@ -2215,10 +2237,10 @@ function icRenderAlertas(alertas) {
 
 // ═══ Upload IRPJ/CSLL — slots ═══
 const IC_FILE_SLOTS = [
-  { key: 'aplicacao_financeira', label: 'Aplicação Financeira',   icon: '💰', obrigatorio: true },
-  { key: 'variacao_cambial',     label: 'Variação Cambial Ativa', icon: '📈', obrigatorio: true },
-  { key: 'irrf',                 label: 'IRRF',                   icon: '📄', obrigatorio: true },
-  { key: 'template',             label: 'Template',               icon: '📋', obrigatorio: false },
+  { key: 'aplicacao_financeira', label: 'Aplicação Financeira',   icon: '💰', obrigatorio: true, keyword: 'aplicacao' },
+  { key: 'variacao_cambial',     label: 'Variação Cambial Ativa', icon: '📈', obrigatorio: true, keyword: 'variacao' },
+  { key: 'irrf',                 label: 'IRRF',                   icon: '📄', obrigatorio: true, keyword: 'irrf' },
+  { key: 'template',             label: 'Template',               icon: '📋', obrigatorio: false, keyword: 'irpj' },
 ];
 const icUploadedFiles = {};
 
@@ -2249,6 +2271,8 @@ function icUpdateStatusBox() {
 function icOnFileSelected(key, input) {
   const file = input.files[0];
   if (!file) return;
+  const slot = IC_FILE_SLOTS.find(s => s.key === key);
+  if (!_validarArquivoSlot(slot, file, input)) return;
   icUploadedFiles[key] = file;
   document.getElementById(`ic-slot-${key}`).classList.add('uploaded');
   document.getElementById(`ic-slot-name-${key}`).textContent = file.name;
