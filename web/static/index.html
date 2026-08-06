@@ -1736,8 +1736,12 @@ function renderDashboardHistorico() {
   if (!_isLoggedIn() || !_sessoes.length) { el.style.display = 'none'; return; }
   el.style.display = 'block';
 
+  const sessoesOrdenadas = [..._sessoes].sort(
+    (a, b) => _competenciaParaOrdem(a.competencia) - _competenciaParaOrdem(b.competencia)
+  );
+
   let sumBase = 0, sumCofins = 0, sumPis = 0, sumTotal = 0;
-  tbody.innerHTML = _sessoes.map(s => {
+  tbody.innerHTML = sessoesOrdenadas.map(s => {
     const active = appState.sessionId === s.id ? ' class="hist-row-active"' : '';
     sumBase   += s.base_liquida   || 0;
     sumCofins += s.cofins_a_pagar || 0;
