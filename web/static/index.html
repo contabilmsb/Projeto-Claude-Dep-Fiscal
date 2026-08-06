@@ -2048,7 +2048,8 @@ async function icCarregarPeriodos() {
   try {
     const resTrim = await fetch('/irpj-csll/trimestres', { headers: { 'X-Auth-Token': _getToken() } });
     const trimestres = resTrim.ok ? await resTrim.json() : [];
-    document.getElementById('ic-trim-select').innerHTML = '<option value="">— selecione —</option>' + trimestres.map(t =>
+    const trimestresOrdenados = [...trimestres].sort((a, b) => (a.ano * 4 + a.trimestre) - (b.ano * 4 + b.trimestre));
+    document.getElementById('ic-trim-select').innerHTML = '<option value="">— selecione —</option>' + trimestresOrdenados.map(t =>
       `<option value="${t.ano}-${t.trimestre}"${t.completo ? '' : ' disabled'}>${t.trimestre}º Trimestre ${t.ano}${t.completo ? '' : ' (incompleto)'}</option>`
     ).join('');
     if (!icState.trimestreAtual) {
@@ -2427,7 +2428,8 @@ async function expIcInit() {
   try {
     const resTrim = await fetch('/irpj-csll/trimestres', { headers: { 'X-Auth-Token': _getToken() } });
     const trimestres = resTrim.ok ? await resTrim.json() : [];
-    document.getElementById('exp-ic-trim-select').innerHTML = '<option value="">— selecione —</option>' + trimestres.map(t =>
+    const trimestresOrdenados = [...trimestres].sort((a, b) => (a.ano * 4 + a.trimestre) - (b.ano * 4 + b.trimestre));
+    document.getElementById('exp-ic-trim-select').innerHTML = '<option value="">— selecione —</option>' + trimestresOrdenados.map(t =>
       `<option value="${t.ano}-${t.trimestre}"${t.completo ? '' : ' disabled'}>${t.trimestre}º Trimestre ${t.ano}${t.completo ? '' : ' (incompleto)'}</option>`
     ).join('');
     const completo = trimestres.find(t => t.completo);
