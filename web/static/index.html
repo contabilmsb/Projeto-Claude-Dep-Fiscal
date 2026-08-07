@@ -1802,11 +1802,14 @@ function renderDashboardAcumulado() {
   const dashRight = document.querySelector('.dash-right');
   if (dashRight) dashRight.style.display = 'none';
 
-  // Gráficos comparativos por competência
-  const labels  = [..._sessoes].reverse().map(s => s.competencia);
-  const cofins  = [..._sessoes].reverse().map(s => s.cofins_a_pagar || 0);
-  const pis     = [..._sessoes].reverse().map(s => s.pis_a_pagar    || 0);
-  const bases   = [..._sessoes].reverse().map(s => s.base_liquida   || 0);
+  // Gráficos comparativos por competência (ordem crescente)
+  const sessoesOrdenadas = [..._sessoes].sort(
+    (a, b) => _competenciaParaOrdem(a.competencia) - _competenciaParaOrdem(b.competencia)
+  );
+  const labels  = sessoesOrdenadas.map(s => s.competencia);
+  const cofins  = sessoesOrdenadas.map(s => s.cofins_a_pagar || 0);
+  const pis     = sessoesOrdenadas.map(s => s.pis_a_pagar    || 0);
+  const bases   = sessoesOrdenadas.map(s => s.base_liquida   || 0);
 
   if (appState.charts.donut) appState.charts.donut.destroy();
   appState.charts.donut = new Chart(document.getElementById('chart-donut'), {
