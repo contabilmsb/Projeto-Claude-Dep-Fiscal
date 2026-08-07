@@ -2131,10 +2131,18 @@ async function icSelecionarTrimestre(valor) {
 
 async function icTrocarPeriodo(sessionId) {
   const sel = document.getElementById('ic-period-select');
+  // Sem login, só a competência mais recente (/irpj-csll/ultimo-resultado) e a soma
+  // de todas (/irpj-csll/todas) são públicas — /irpj-csll/sessao/{id} sempre exige
+  // login. Em vez de tentar e ficar com o seletor "preso" numa competência
+  // inacessível, avisa e restaura para a competência atualmente carregada.
+  if (sessionId && !_isLoggedIn() && sessionId !== icState.sessionId) {
+    showToast('🔒 Faça login para consultar outras competências.', 'warn', 4000);
+    if (sel) sel.value = icState.sessionId || '';
+    return;
+  }
   if (sel) sel.value = sessionId || '';
   try {
     // "" = Todas as competências (soma de todos os meses processados).
-    // Sem login: só o resultado mais recente é público (mesma regra do dashboard PIS/COFINS).
     const url = !sessionId
       ? '/irpj-csll/todas'
       : (_isLoggedIn() ? `/irpj-csll/sessao/${sessionId}` : '/irpj-csll/ultimo-resultado');
