@@ -1662,6 +1662,19 @@ async function trocarPeriodo(pagina, sessionId) {
   }
   if (!sessionId) return;
 
+  // Sem login, só a competência mais recente (/ultimo-resultado) é pública —
+  // /sessao/{id} sempre retorna 401 para qualquer outra. Em vez de tentar e
+  // mostrar "Período não encontrado" (confuso, já que o período existe, só
+  // não está acessível sem login), avisa e restaura os selects.
+  if (!_isLoggedIn() && sessionId !== appState.sessionId) {
+    showToast('🔒 Faça login para consultar outras competências.', 'warn', 4000);
+    ['dash-period-select', 'cons-period-select', 'exp-period-select'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = appState.sessionId || '';
+    });
+    return;
+  }
+
   // Sincroniza todos os selects de período
   ['dash-period-select', 'cons-period-select', 'exp-period-select'].forEach(id => {
     const el = document.getElementById(id);
