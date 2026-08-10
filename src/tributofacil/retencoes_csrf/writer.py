@@ -50,7 +50,7 @@ def _valor_celula(v):
 
 
 def _escrever_planilha(ws, df: pd.DataFrame, larguras: dict, cols_moeda: set, cols_data: set,
-                        coluna_total: str | None = None) -> None:
+                        colunas_total: list[str] | None = None) -> None:
     colunas = list(df.columns)
     for col_idx, nome in enumerate(colunas, start=1):
         cell = ws.cell(row=1, column=col_idx, value=nome)
@@ -70,27 +70,31 @@ def _escrever_planilha(ws, df: pd.DataFrame, larguras: dict, cols_moeda: set, co
                 cell.number_format = "dd/mm/yyyy"
         row_idx += 1
 
-    if coluna_total:
+    if colunas_total:
         total_row = row_idx
-        idx_valor = colunas.index(coluna_total) + 1
+        idx_colunas_total = sorted(colunas.index(c) + 1 for c in colunas_total)
+        primeira_col_total = idx_colunas_total[0]
         ws.cell(row=total_row, column=1, value=f"TOTAL — {len(df)} linha(s)").font = Font(bold=True)
-        ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=idx_valor - 1)
-        total = float(pd.to_numeric(df[coluna_total], errors="coerce").fillna(0).sum())
-        tot_cell = ws.cell(row=total_row, column=idx_valor, value=round(total, 2))
-        tot_cell.font = Font(bold=True)
-        tot_cell.number_format = "#,##0.00"
+        ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=primeira_col_total - 1)
+        for nome_col, idx_col in zip(colunas_total, idx_colunas_total):
+            total = float(pd.to_numeric(df[nome_col], errors="coerce").fillna(0).sum())
+            tot_cell = ws.cell(row=total_row, column=idx_col, value=round(total, 2))
+            tot_cell.font = Font(bold=True)
+            tot_cell.number_format = "#,##0.00"
 
 
 def gerar_excel(df: pd.DataFrame, df_acumulado: pd.DataFrame, avisos: list[str]) -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = "Retenções CSRF"
-    _escrever_planilha(ws, df, LARGURAS, COLS_MOEDA, COLS_DATA, coluna_total="Valor do Imposto Retido na Fonte")
+    _escrever_planilha(
+        ws, df, LARGURAS, COLS_MOEDA, COLS_DATA, colunas_total=["Valor do Imposto Retido na Fonte"]
+    )
 
     ws_acum = wb.create_sheet("Acumulado por Fornecedor")
     _escrever_planilha(
         ws_acum, df_acumulado, LARGURAS_ACUMULADO, COLS_MOEDA_ACUMULADO, COLS_DATA_ACUMULADO,
-        coluna_total="Total Retido",
+        colunas_total=["COFINS Retido", "CSLL Retido", "PIS Retido", "Total Retido"],
     )
 
     if avisos:
