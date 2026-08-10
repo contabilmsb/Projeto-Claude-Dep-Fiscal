@@ -1174,7 +1174,8 @@ async function doLogin() {
     document.getElementById('login-pass').value = '';
     updateAuthUI();
     carregarSessoes();
-    navigate('arquivosfiscais');
+    navigate('dashboard');
+    showToast(`👋 Bem-vindo(a), ${data.username}!`, 'ok', 4000);
   } catch(e) {
     err.textContent = e.message; err.style.display = 'block';
   } finally {
