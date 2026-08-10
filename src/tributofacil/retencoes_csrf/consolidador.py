@@ -22,6 +22,12 @@ COLUNAS_SAIDA = [
     "Comprovante de Pagamento",
 ]
 
+CODIGO_PARA_COLUNA = {
+    "COFINS RET": "COFINS Retido",
+    "CSLL RET": "CSLL Retido",
+    "PIS RET": "PIS Retido",
+}
+
 
 def consolidar(df_pcc: pd.DataFrame, df_notas: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     avisos = []
@@ -74,3 +80,44 @@ def consolidar(df_pcc: pd.DataFrame, df_notas: pd.DataFrame) -> tuple[pd.DataFra
     })
 
     return saida, avisos
+
+
+def acumular_por_fornecedor(df_saida: pd.DataFrame) -> pd.DataFrame:
+    """
+    Resumo acumulado por fornecedor: soma os valores retidos de cada
+    imposto (PIS/COFINS/CSLL) em colunas separadas — sem o número da nota
+    fiscal ou do comprovante, já que uma linha aqui pode somar vários
+    comprovantes — e usa a data mais recente entre os lançamentos do
+    fornecedor.
+    """
+    df = df_saida.copy()
+    df["_coluna_imposto"] = df["Código do Imposto Retido na Fonte"].map(CODIGO_PARA_COLUNA)
+    df["_coluna_imposto"] = df["_coluna_imposto"].fillna(df["Código do Imposto Retido na Fonte"])
+
+    pivot = df.pivot_table(
+        index=["Código do Fornecedor", "Nome/Razão Social do Fornecedor", "CNPJ do Fornecedor"],
+        columns="_coluna_imposto",
+        values="Valor do Imposto Retido na Fonte",
+        aggfunc="sum",
+        fill_value=0.0,
+    ).reset_index()
+    pivot.columns.name = None
+
+    for col in CODIGO_PARA_COLUNA.values():
+        if col not in pivot.columns:
+            pivot[col] = 0.0
+
+    datas = (
+        df.groupby("Código do Fornecedor")["Data do Arquivo PCC"]
+        .max()
+        .rename("Data do Arquivo PCC (mais recente)")
+    )
+    pivot = pivot.merge(datas, on="Código do Fornecedor", how="left")
+
+    pivot["Total Retido"] = pivot["COFINS Retido"] + pivot["CSLL Retido"] + pivot["PIS Retido"]
+
+    colunas_finais = [
+        "Código do Fornecedor", "Nome/Razão Social do Fornecedor", "CNPJ do Fornecedor",
+        "Data do Arquivo PCC (mais recente)", "COFINS Retido", "CSLL Retido", "PIS Retido", "Total Retido",
+    ]
+    return pivot[colunas_finais].sort_values("Código do Fornecedor").reset_index(drop=True)

@@ -53,7 +53,10 @@ from src.tributofacil.difal_bahia.calculator import (
     ALIQUOTA_INTERNA_CONVENIO_5291,
 )
 from src.tributofacil.retencoes_csrf.reader import load_pcc, load_notas
-from src.tributofacil.retencoes_csrf.consolidador import consolidar as consolidar_retencoes_csrf
+from src.tributofacil.retencoes_csrf.consolidador import (
+    consolidar as consolidar_retencoes_csrf,
+    acumular_por_fornecedor as acumular_retencoes_csrf,
+)
 from src.tributofacil.retencoes_csrf.writer import gerar_excel as gerar_excel_retencoes_csrf
 from src.tributofacil.difal_bahia.writer import gerar_excel as gerar_excel_difal_bahia
 
@@ -629,8 +632,9 @@ async def tributofacil_retencoes_csrf_processar(
         df_saida, avisos = consolidar_retencoes_csrf(df_pcc, df_notas)
         if df_saida.empty:
             raise HTTPException(status_code=422, detail="Nenhum registro encontrado para consolidar.")
+        df_acumulado = acumular_retencoes_csrf(df_saida)
 
-        excel_bytes = gerar_excel_retencoes_csrf(df_saida, avisos)
+        excel_bytes = gerar_excel_retencoes_csrf(df_saida, df_acumulado, avisos)
         total_retido = float(df_saida["Valor do Imposto Retido na Fonte"].fillna(0).sum())
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"Retencoes_CSRF_{ts}.xlsx"
