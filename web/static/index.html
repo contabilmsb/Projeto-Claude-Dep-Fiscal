@@ -1056,10 +1056,16 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
           </div>
         </div>
         <div class="error-msg" id="tf-csrf-error" style="display:none;"></div>
-        <button class="btn btn-primary" onclick="tfCsrfProcessar()" id="tf-csrf-btn" disabled style="width:auto;padding:10px 24px;align-self:flex-start;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Processar e Baixar Excel
-        </button>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="tfCsrfProcessar()" id="tf-csrf-btn" disabled style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Processar e Baixar Excel
+          </button>
+          <button class="btn btn-secondary" onclick="tfCsrfLimparAnexos()" style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Limpar Anexos
+          </button>
+        </div>
       </div>
     </div>
 
@@ -2760,6 +2766,24 @@ function tfCsrfOnFileSelected(tipo, input) {
   document.getElementById(`tf-csrf-slot-${tipo}`).classList.add('uploaded');
   document.getElementById(`tf-csrf-slot-name-${tipo}`).textContent = file.name;
   document.getElementById('tf-csrf-btn').disabled = !(tfCsrfFiles.pcc && tfCsrfFiles.notas);
+}
+
+function tfCsrfLimparAnexos() {
+  ['pcc', 'notas'].forEach(tipo => {
+    delete tfCsrfFiles[tipo];
+    const input = document.getElementById(`tf-csrf-file-${tipo}`);
+    if (input) input.value = '';
+    const slotEl = document.getElementById(`tf-csrf-slot-${tipo}`);
+    if (slotEl) slotEl.classList.remove('uploaded');
+    const nameEl = document.getElementById(`tf-csrf-slot-name-${tipo}`);
+    if (nameEl) nameEl.textContent = 'Selecionar';
+  });
+  document.getElementById('tf-csrf-btn').disabled = true;
+  const errEl = document.getElementById('tf-csrf-error');
+  if (errEl) errEl.style.display = 'none';
+  const resumoEl = document.getElementById('tf-csrf-resumo');
+  if (resumoEl) resumoEl.innerHTML = '';
+  showToast('✓ Anexos limpos — selecione os arquivos novamente.', 'ok', 3000);
 }
 
 async function tfCsrfProcessar() {
