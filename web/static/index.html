@@ -93,6 +93,10 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 .page { display: none; flex: 1; overflow: hidden; }
 .page.active { display: flex; flex-direction: column; }
 
+/* ── Sub-páginas (abas de 1º nível dentro de um único menu, ex.: Arquivos Fiscais) ── */
+.subpage { display: none; flex: 1; overflow: hidden; }
+.subpage.active { display: flex; flex-direction: column; }
+
 /* ══════════════════════════════════
    UPLOAD PAGE
 ══════════════════════════════════ */
@@ -363,13 +367,9 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       Recebimento - Notas Fiscais
     </div>
-    <div class="nav-item disabled" data-page="exportar" data-protected="true" onclick="navigate('exportar')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Download Apuração
-    </div>
-    <div class="nav-item" data-page="upload" data-protected="true" onclick="navigate('upload')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      Upload
+    <div class="nav-item" data-page="arquivosfiscais" data-protected="true" onclick="navigate('arquivosfiscais')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Arquivos Fiscais
     </div>
     <div class="nav-item" data-page="tributofacil" data-protected="true" onclick="navigate('tributofacil')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -391,8 +391,22 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 <!-- ═══════════ MAIN ═══════════ -->
 <main id="main">
 
-<!-- ─────────────── UPLOAD ─────────────── -->
-<div id="page-upload" class="page">
+<!-- ─────────────── ARQUIVOS FISCAIS (Upload + Download Apuração) ─────────────── -->
+<div id="page-arquivosfiscais" class="page">
+  <div class="page-header">
+    <h2>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Arquivos Fiscais
+    </h2>
+    <p>Upload dos arquivos-fonte e download das apurações geradas</p>
+  </div>
+
+  <div class="right-tabs" style="max-width:400px;">
+    <div class="rtab active" id="af-tab-upload" onclick="afSwitchTab('upload')">Upload</div>
+    <div class="rtab" id="af-tab-download" onclick="afSwitchTab('download')">Download Apuração</div>
+  </div>
+
+  <div id="af-panel-upload" class="subpage active">
   <div class="page-header">
     <h2>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -493,6 +507,141 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         <div id="ic-upload-status" style="font-size:11px;color:var(--gray400);text-align:center;"></div>
       </div>
     </div>
+  </div>
+  </div>
+
+  <div id="af-panel-download" class="subpage">
+  <div class="page-header">
+    <h2>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download Apuração
+    </h2>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="period-selector" id="exp-pis-selector-row">
+        <span class="period-label">Competência:</span>
+        <select class="period-select" id="exp-period-select" onchange="trocarPeriodo('exportar', this.value)">
+          <option value="">— selecione —</option>
+        </select>
+      </div>
+      <div id="exp-ic-selectors" style="display:none;align-items:center;gap:10px;">
+        <div class="period-selector">
+          <span class="period-label">Ver por:</span>
+          <select class="period-select" id="exp-ic-modo-select" onchange="expIcMudarModo(this.value)">
+            <option value="mes">Mês</option>
+            <option value="trimestre">Trimestre</option>
+          </select>
+        </div>
+        <div class="period-selector" id="exp-ic-mes-row">
+          <span class="period-label">Competência:</span>
+          <select class="period-select" id="exp-ic-mes-select" onchange="expIcCarregarMes(this.value)">
+            <option value="">— selecione —</option>
+          </select>
+        </div>
+        <div class="period-selector" id="exp-ic-trim-row" style="display:none;">
+          <span class="period-label">Trimestre:</span>
+          <select class="period-select" id="exp-ic-trim-select" onchange="expIcCarregarTrimestre(this.value)">
+            <option value="">— selecione —</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-tabs" style="max-width:360px;">
+    <div class="rtab active" id="etab-pis" onclick="switchExportTab('pis')">PIS/COFINS</div>
+    <div class="rtab" id="etab-irpj" onclick="switchExportTab('irpj')">IRPJ/CSLL</div>
+  </div>
+
+  <div class="export-body" id="export-panel-pis">
+    <div class="export-left">
+
+      <div class="exp-summary-card">
+        <h4>Resumo — COFINS</h4>
+        <div id="exp-cofins-rows"></div>
+      </div>
+
+      <div class="exp-summary-card">
+        <h4>Resumo — PIS</h4>
+        <div id="exp-pis-rows"></div>
+      </div>
+
+      <div class="exp-summary-card">
+        <h4>Base de Cálculo</h4>
+        <div id="exp-base-rows"></div>
+      </div>
+
+      <div class="exp-summary-card">
+        <h4>Retenções Complementares</h4>
+        <div id="exp-ret-rows"></div>
+      </div>
+    </div>
+
+    <div class="export-right">
+      <div class="export-icon">📊</div>
+      <h3>Planilha Pronta</h3>
+      <p>Contém as abas <strong>COFINS</strong>, <strong>PIS</strong>, <strong>Consolidação NF</strong> e <strong>Validação</strong> no layout padrão da equipe fiscal.</p>
+      <div class="export-filename" id="export-filename">—</div>
+      <button class="btn-dl" onclick="exportar()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar Excel
+      </button>
+    </div>
+  </div>
+
+  <div class="export-body" id="exp-ic-mes-body" style="display:none;">
+    <div class="export-left">
+      <div class="exp-summary-card">
+        <h4>Componentes do Mês — <span id="exp-ic-mes-comp">—</span></h4>
+        <div id="exp-ic-mes-rows"></div>
+      </div>
+      <div class="exp-summary-card">
+        <h4>IRPJ Estimado (informativo)</h4>
+        <div id="exp-ic-mes-irpj-rows"></div>
+      </div>
+      <div class="exp-summary-card">
+        <h4>CSLL Estimada (informativo)</h4>
+        <div id="exp-ic-mes-csll-rows"></div>
+      </div>
+    </div>
+    <div class="export-right">
+      <div class="export-icon">📅</div>
+      <h3>Visão Mensal</h3>
+      <p>A exportação em Excel é feita por <strong>trimestre</strong> (regime de apuração do IRPJ/CSLL no Lucro Presumido). Troque para "Trimestre" no filtro acima para gerar o arquivo.</p>
+    </div>
+  </div>
+
+  <div class="export-body" id="exp-ic-trim-body" style="display:none;">
+    <div class="export-left">
+      <div class="exp-summary-card">
+        <h4>Resumo — IRPJ</h4>
+        <div id="exp-ic-irpj-rows"></div>
+      </div>
+      <div class="exp-summary-card">
+        <h4>Resumo — CSLL</h4>
+        <div id="exp-ic-csll-rows"></div>
+      </div>
+      <div class="exp-summary-card">
+        <h4>Parcelas — IRPJ (DARF 2089)</h4>
+        <div id="exp-ic-parc-irpj-rows"></div>
+      </div>
+      <div class="exp-summary-card">
+        <h4>Parcelas — CSLL (DARF 2372)</h4>
+        <div id="exp-ic-parc-csll-rows"></div>
+      </div>
+    </div>
+
+    <div class="export-right">
+      <div class="export-icon">📊</div>
+      <h3 id="exp-ic-status-title">Planilha Pronta</h3>
+      <p id="exp-ic-status-desc">Contém as abas <strong>IRPJ</strong> e <strong>CSLL</strong> preenchidas no layout padrão da contabilidade.</p>
+      <div class="export-filename" id="exp-ic-filename">—</div>
+      <div class="error-msg" id="exp-ic-error" style="display:none;"></div>
+      <button class="btn-dl" id="exp-ic-btn-baixar" onclick="expIcBaixarExcel()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar Excel
+      </button>
+    </div>
+  </div>
   </div>
 </div>
 
@@ -661,141 +810,6 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
   </div>
 </div>
 
-<!-- ─────────────── EXPORTAR ─────────────── -->
-<div id="page-exportar" class="page">
-  <div class="page-header">
-    <h2>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Download Apuração
-    </h2>
-    <div style="display:flex;align-items:center;gap:10px;">
-      <div class="period-selector" id="exp-pis-selector-row">
-        <span class="period-label">Competência:</span>
-        <select class="period-select" id="exp-period-select" onchange="trocarPeriodo('exportar', this.value)">
-          <option value="">— selecione —</option>
-        </select>
-      </div>
-      <div id="exp-ic-selectors" style="display:none;align-items:center;gap:10px;">
-        <div class="period-selector">
-          <span class="period-label">Ver por:</span>
-          <select class="period-select" id="exp-ic-modo-select" onchange="expIcMudarModo(this.value)">
-            <option value="mes">Mês</option>
-            <option value="trimestre">Trimestre</option>
-          </select>
-        </div>
-        <div class="period-selector" id="exp-ic-mes-row">
-          <span class="period-label">Competência:</span>
-          <select class="period-select" id="exp-ic-mes-select" onchange="expIcCarregarMes(this.value)">
-            <option value="">— selecione —</option>
-          </select>
-        </div>
-        <div class="period-selector" id="exp-ic-trim-row" style="display:none;">
-          <span class="period-label">Trimestre:</span>
-          <select class="period-select" id="exp-ic-trim-select" onchange="expIcCarregarTrimestre(this.value)">
-            <option value="">— selecione —</option>
-          </select>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="right-tabs" style="max-width:360px;">
-    <div class="rtab active" id="etab-pis" onclick="switchExportTab('pis')">PIS/COFINS</div>
-    <div class="rtab" id="etab-irpj" onclick="switchExportTab('irpj')">IRPJ/CSLL</div>
-  </div>
-
-  <div class="export-body" id="export-panel-pis">
-    <div class="export-left">
-
-      <div class="exp-summary-card">
-        <h4>Resumo — COFINS</h4>
-        <div id="exp-cofins-rows"></div>
-      </div>
-
-      <div class="exp-summary-card">
-        <h4>Resumo — PIS</h4>
-        <div id="exp-pis-rows"></div>
-      </div>
-
-      <div class="exp-summary-card">
-        <h4>Base de Cálculo</h4>
-        <div id="exp-base-rows"></div>
-      </div>
-
-      <div class="exp-summary-card">
-        <h4>Retenções Complementares</h4>
-        <div id="exp-ret-rows"></div>
-      </div>
-    </div>
-
-    <div class="export-right">
-      <div class="export-icon">📊</div>
-      <h3>Planilha Pronta</h3>
-      <p>Contém as abas <strong>COFINS</strong>, <strong>PIS</strong>, <strong>Consolidação NF</strong> e <strong>Validação</strong> no layout padrão da equipe fiscal.</p>
-      <div class="export-filename" id="export-filename">—</div>
-      <button class="btn-dl" onclick="exportar()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Baixar Excel
-      </button>
-    </div>
-  </div>
-
-  <div class="export-body" id="exp-ic-mes-body" style="display:none;">
-    <div class="export-left">
-      <div class="exp-summary-card">
-        <h4>Componentes do Mês — <span id="exp-ic-mes-comp">—</span></h4>
-        <div id="exp-ic-mes-rows"></div>
-      </div>
-      <div class="exp-summary-card">
-        <h4>IRPJ Estimado (informativo)</h4>
-        <div id="exp-ic-mes-irpj-rows"></div>
-      </div>
-      <div class="exp-summary-card">
-        <h4>CSLL Estimada (informativo)</h4>
-        <div id="exp-ic-mes-csll-rows"></div>
-      </div>
-    </div>
-    <div class="export-right">
-      <div class="export-icon">📅</div>
-      <h3>Visão Mensal</h3>
-      <p>A exportação em Excel é feita por <strong>trimestre</strong> (regime de apuração do IRPJ/CSLL no Lucro Presumido). Troque para "Trimestre" no filtro acima para gerar o arquivo.</p>
-    </div>
-  </div>
-
-  <div class="export-body" id="exp-ic-trim-body" style="display:none;">
-    <div class="export-left">
-      <div class="exp-summary-card">
-        <h4>Resumo — IRPJ</h4>
-        <div id="exp-ic-irpj-rows"></div>
-      </div>
-      <div class="exp-summary-card">
-        <h4>Resumo — CSLL</h4>
-        <div id="exp-ic-csll-rows"></div>
-      </div>
-      <div class="exp-summary-card">
-        <h4>Parcelas — IRPJ (DARF 2089)</h4>
-        <div id="exp-ic-parc-irpj-rows"></div>
-      </div>
-      <div class="exp-summary-card">
-        <h4>Parcelas — CSLL (DARF 2372)</h4>
-        <div id="exp-ic-parc-csll-rows"></div>
-      </div>
-    </div>
-
-    <div class="export-right">
-      <div class="export-icon">📊</div>
-      <h3 id="exp-ic-status-title">Planilha Pronta</h3>
-      <p id="exp-ic-status-desc">Contém as abas <strong>IRPJ</strong> e <strong>CSLL</strong> preenchidas no layout padrão da contabilidade.</p>
-      <div class="export-filename" id="exp-ic-filename">—</div>
-      <div class="error-msg" id="exp-ic-error" style="display:none;"></div>
-      <button class="btn-dl" id="exp-ic-btn-baixar" onclick="expIcBaixarExcel()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Baixar Excel
-      </button>
-    </div>
-  </div>
-</div>
-
 <!-- ─────────────── USUÁRIOS ─────────────── -->
 <div id="page-usuarios" class="page">
   <div class="page-header">
@@ -898,7 +912,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <!-- Estado vazio — nenhum mês processado ainda neste módulo -->
       <div id="ic-empty" style="background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:32px;text-align:center;color:var(--gray400);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:14px;">
         <span>Nenhuma competência processada ainda neste módulo.</span>
-        <button class="btn btn-primary" onclick="navigate('upload'); switchUploadTab('irpj');" style="width:auto;padding:9px 20px;">
+        <button class="btn btn-primary" onclick="navigate('arquivosfiscais'); afSwitchTab('upload'); switchUploadTab('irpj');" style="width:auto;padding:9px 20px;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Ir para Upload IRPJ/CSLL
         </button>
@@ -1115,8 +1129,8 @@ function updateAuthUI() {
         <span class="sb-user-name">👤 ${user}</span>
         <button class="sb-user-logout" onclick="doLogout()" title="Sair">⏻ Sair</button>
       </div>`;
-    // Habilita Consolidação e Exportar assim que logar
-    ['consolidacao', 'exportar'].forEach(p =>
+    // Habilita Consolidação assim que logar
+    ['consolidacao'].forEach(p =>
       document.querySelector(`[data-page="${p}"]`).classList.remove('disabled')
     );
   } else {
@@ -1126,7 +1140,7 @@ function updateAuthUI() {
         Entrar
       </button>`;
     // Bloqueia novamente ao sair
-    ['consolidacao', 'exportar'].forEach(p =>
+    ['consolidacao'].forEach(p =>
       document.querySelector(`[data-page="${p}"]`).classList.add('disabled')
     );
   }
@@ -1160,7 +1174,7 @@ async function doLogin() {
     document.getElementById('login-pass').value = '';
     updateAuthUI();
     carregarSessoes();
-    navigate('upload');
+    navigate('arquivosfiscais');
   } catch(e) {
     err.textContent = e.message; err.style.display = 'block';
   } finally {
@@ -1172,7 +1186,7 @@ function doLogout() {
   sessionStorage.removeItem('auth_token');
   sessionStorage.removeItem('auth_user');
   appState.resultado = null; appState.sessionId = null;
-  ['consolidacao','exportar'].forEach(p => document.querySelector(`[data-page="${p}"]`).classList.add('disabled'));
+  ['consolidacao'].forEach(p => document.querySelector(`[data-page="${p}"]`).classList.add('disabled'));
   updateAuthUI();
   navigate('dashboard');
 }
@@ -1300,6 +1314,13 @@ function checkReady() {
     miss > 0 ? `${miss} arquivo(s) pendente(s)` : compOk ? '✓ Pronto para processar' : 'Informe a competência';
 }
 
+function afSwitchTab(tab) {
+  document.getElementById('af-tab-upload').classList.toggle('active', tab === 'upload');
+  document.getElementById('af-tab-download').classList.toggle('active', tab === 'download');
+  document.getElementById('af-panel-upload').classList.toggle('active', tab === 'upload');
+  document.getElementById('af-panel-download').classList.toggle('active', tab === 'download');
+}
+
 function switchUploadTab(tab) {
   document.getElementById('utab-pis').classList.toggle('active', tab === 'pis');
   document.getElementById('utab-irpj').classList.toggle('active', tab === 'irpj');
@@ -1354,7 +1375,7 @@ async function processar() {
 
     appState.resultado = data;
     appState.sessionId = data.session_id;
-    ['dashboard','consolidacao','exportar'].forEach(p => document.querySelector(`[data-page="${p}"]`).classList.remove('disabled'));
+    ['dashboard','consolidacao'].forEach(p => document.querySelector(`[data-page="${p}"]`).classList.remove('disabled'));
 
     renderDashboard(data);
     renderConsolidacao(data.consolidacao, data.alertas);
@@ -1619,9 +1640,9 @@ function navigate(page) {
   item.classList.add('active');
   document.getElementById(`page-${page}`).classList.add('active');
   if (page === 'usuarios')    carregarUsuarios();
-  if (page === 'consolidacao' || page === 'exportar') carregarSessoes();
+  if (page === 'consolidacao' || page === 'arquivosfiscais') carregarSessoes();
   if (page === 'irpjcsll')    icCarregarPeriodos();
-  if (page === 'exportar')    expIcInit();
+  if (page === 'arquivosfiscais') expIcInit();
 }
 
 // ═══ Seletor de Período ═══
@@ -1646,7 +1667,7 @@ async function carregarSessoes() {
           appState.sessionId = data.session_id || _sessoes[0].id;
           renderConsolidacao(data.consolidacao, data.alertas);
           renderExportar(data);
-          ['consolidacao','exportar'].forEach(p =>
+          ['consolidacao'].forEach(p =>
             document.querySelector(`[data-page="${p}"]`).classList.remove('disabled')
           );
           ['cons-period-select','exp-period-select'].forEach(id => {
@@ -1766,7 +1787,7 @@ async function trocarPeriodo(pagina, sessionId) {
     renderDashboardHistorico();
 
     // Habilita as páginas se ainda estavam bloqueadas
-    ['consolidacao','exportar'].forEach(p =>
+    ['consolidacao'].forEach(p =>
       document.querySelector(`[data-page="${p}"]`).classList.remove('disabled')
     );
 
