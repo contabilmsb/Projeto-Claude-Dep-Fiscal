@@ -52,6 +52,9 @@ from src.tributofacil.difal_bahia.calculator import (
     ALIQUOTA_INTERNA_BA,
     ALIQUOTA_INTERNA_CONVENIO_5291,
 )
+from src.tributofacil.retencoes_csrf.reader import load_pcc, load_notas
+from src.tributofacil.retencoes_csrf.consolidador import consolidar as consolidar_retencoes_csrf
+from src.tributofacil.retencoes_csrf.writer import gerar_excel as gerar_excel_retencoes_csrf
 from src.tributofacil.difal_bahia.writer import gerar_excel as gerar_excel_difal_bahia
 
 app = FastAPI(title="Apuração PIS/COFINS")
@@ -590,6 +593,56 @@ async def tributofacil_difal_bahia_processar(arquivos: list[UploadFile] = File(.
                 "X-Difal-Total": f"{total_difal:.2f}",
                 "X-Difal-Qtd-Itens": str(len(linhas)),
                 "X-Difal-Qtd-Avisos": str(len(avisos)),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@app.post("/tributofacil/retencoes-csrf/processar", dependencies=[Depends(require_auth)])
+async def tributofacil_retencoes_csrf_processar(
+    pcc: UploadFile = File(...),
+    notas_fiscais: UploadFile = File(...),
+):
+    tmp_dir = Path(tempfile.mkdtemp(prefix="retencoes_csrf_"))
+    try:
+        pcc_path = tmp_dir / pcc.filename
+        pcc_path.write_bytes(await pcc.read())
+        notas_path = tmp_dir / notas_fiscais.filename
+        notas_path.write_bytes(await notas_fiscais.read())
+
+        try:
+            df_pcc = load_pcc(pcc_path)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Arquivo PCC ({pcc.filename}): {e}")
+        try:
+            df_notas = load_notas(notas_path)
+        except Exception as e:
+            raise HTTPException(
+                status_code=422, detail=f"Arquivo PCC Notas Fiscais ({notas_fiscais.filename}): {e}"
+            )
+
+        df_saida, avisos = consolidar_retencoes_csrf(df_pcc, df_notas)
+        if df_saida.empty:
+            raise HTTPException(status_code=422, detail="Nenhum registro encontrado para consolidar.")
+
+        excel_bytes = gerar_excel_retencoes_csrf(df_saida, avisos)
+        total_retido = float(df_saida["Valor do Imposto Retido na Fonte"].fillna(0).sum())
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Retencoes_CSRF_{ts}.xlsx"
+
+        return StreamingResponse(
+            iter([excel_bytes]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Csrf-Total": f"{total_retido:.2f}",
+                "X-Csrf-Qtd-Linhas": str(len(df_saida)),
+                "X-Csrf-Qtd-Avisos": str(len(avisos)),
             },
         )
     except HTTPException:

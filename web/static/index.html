@@ -983,12 +983,12 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
   </div>
 
   <div class="right-tabs" style="max-width:520px;">
-    <div class="rtab active">Difal Compras Fora do Estado - Uso e Consumo / Ativo Fixo</div>
-    <div class="rtab" style="opacity:.35;cursor:not-allowed;" title="Em breve">Retenções CSRF</div>
+    <div class="rtab active" id="tf-tab-difal" onclick="tfSwitchTab('difal')">Difal Compras Fora do Estado - Uso e Consumo / Ativo Fixo</div>
+    <div class="rtab" id="tf-tab-csrf" onclick="tfSwitchTab('csrf')">Retenções CSRF</div>
     <div class="rtab" style="opacity:.35;cursor:not-allowed;" title="Em breve">IRRF</div>
   </div>
 
-  <div class="upload-body">
+  <div class="upload-body" id="tf-panel-difal">
     <div class="upload-left">
       <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
         <div class="section-label">DIFAL de Compras — Estado da Bahia</div>
@@ -1027,6 +1027,51 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         com uma aba de avisos quando algo merece atenção (ex.: destino diferente de BA).
       </p>
       <div id="tf-difal-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+
+  <div class="upload-body" id="tf-panel-csrf" style="display:none;">
+    <div class="upload-left">
+      <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
+        <div class="section-label">Retenções CSRF (COFINS/CSLL/PIS Retidos)</div>
+        <p style="font-size:12px;color:var(--gray600);line-height:1.6;margin:0;">
+          Envie a planilha <strong>PCC</strong> (uma linha por retenção de COFINS/CSLL/PIS de cada comprovante de
+          pagamento) e a planilha <strong>PCC Notas Fiscais</strong> (dados do fornecedor por comprovante). O
+          sistema relaciona as duas pelo número do comprovante — coluna "Comprovante de fatura" na PCC e
+          "Comprovante" na planilha de Notas Fiscais — e gera uma única planilha consolidada, com o fornecedor,
+          a nota fiscal e o valor retido de cada linha.
+        </p>
+        <div class="upload-grid" style="grid-template-columns: repeat(2, 1fr);">
+          <div class="file-slot" id="tf-csrf-slot-pcc" onclick="document.getElementById('tf-csrf-file-pcc').click()">
+            <input type="file" id="tf-csrf-file-pcc" accept=".xlsx,.xls" onchange="tfCsrfOnFileSelected('pcc', this)" onclick="event.stopPropagation()">
+            <div class="slot-icon">📄</div>
+            <div class="slot-label">PCC (Retenções) *</div>
+            <div class="slot-name" id="tf-csrf-slot-name-pcc">Selecionar</div>
+          </div>
+          <div class="file-slot" id="tf-csrf-slot-notas" onclick="document.getElementById('tf-csrf-file-notas').click()">
+            <input type="file" id="tf-csrf-file-notas" accept=".xlsx,.xls" onchange="tfCsrfOnFileSelected('notas', this)" onclick="event.stopPropagation()">
+            <div class="slot-icon">🧾</div>
+            <div class="slot-label">PCC Notas Fiscais *</div>
+            <div class="slot-name" id="tf-csrf-slot-name-notas">Selecionar</div>
+          </div>
+        </div>
+        <div class="error-msg" id="tf-csrf-error" style="display:none;"></div>
+        <button class="btn btn-primary" onclick="tfCsrfProcessar()" id="tf-csrf-btn" disabled style="width:auto;padding:10px 24px;align-self:flex-start;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Processar e Baixar Excel
+        </button>
+      </div>
+    </div>
+
+    <div class="upload-right">
+      <h3>Como funciona</h3>
+      <p style="font-size:12px;color:var(--gray600);line-height:1.7;">
+        1. Selecione a planilha PCC e a planilha PCC Notas Fiscais da mesma competência.<br>
+        2. O sistema relaciona cada retenção à respectiva nota fiscal pelo número do comprovante.<br>
+        3. Nada é salvo no sistema — o resultado sai direto em um Excel para download,
+        com uma aba de avisos quando algum comprovante não é encontrado nas duas planilhas.
+      </p>
+      <div id="tf-csrf-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
 </div>
@@ -2596,6 +2641,16 @@ async function expIcBaixarExcel() {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// Tributo Fácil — alternância de abas
+// ══════════════════════════════════════════════════════════════════
+function tfSwitchTab(tab) {
+  document.getElementById('tf-tab-difal').classList.toggle('active', tab === 'difal');
+  document.getElementById('tf-tab-csrf').classList.toggle('active', tab === 'csrf');
+  document.getElementById('tf-panel-difal').style.display = tab === 'difal' ? 'grid' : 'none';
+  document.getElementById('tf-panel-csrf').style.display = tab === 'csrf' ? 'grid' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════
 // Tributo Fácil — DIFAL Compras Bahia
 // ══════════════════════════════════════════════════════════════════
 function tfDifalAtualizaLista() {
@@ -2673,6 +2728,107 @@ async function tfDifalProcessar() {
     errEl.style.display = 'block';
   } finally {
     btn.disabled = false;
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Tributo Fácil — Retenções CSRF
+// ══════════════════════════════════════════════════════════════════
+const tfCsrfFiles = {};
+
+function _validarArquivoCsrf(tipo, file, input) {
+  const nome = _normalizarNome(file.name);
+  if (tipo === 'pcc' && (!nome.includes('pcc') || nome.includes('notas'))) {
+    input.value = '';
+    showToast('⚠ Arquivo incorreto para "PCC (Retenções)" — selecione a planilha PCC (não a de Notas Fiscais).', 'warn', 6000);
+    return false;
+  }
+  if (tipo === 'notas' && !nome.includes('notas')) {
+    input.value = '';
+    showToast('⚠ Arquivo incorreto para "PCC Notas Fiscais" — o nome do arquivo precisa conter "notas".', 'warn', 6000);
+    return false;
+  }
+  return true;
+}
+
+function tfCsrfOnFileSelected(tipo, input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!_validarArquivoCsrf(tipo, file, input)) return;
+  tfCsrfFiles[tipo] = file;
+  document.getElementById(`tf-csrf-slot-${tipo}`).classList.add('uploaded');
+  document.getElementById(`tf-csrf-slot-name-${tipo}`).textContent = file.name;
+  document.getElementById('tf-csrf-btn').disabled = !(tfCsrfFiles.pcc && tfCsrfFiles.notas);
+}
+
+async function tfCsrfProcessar() {
+  const errEl = document.getElementById('tf-csrf-error');
+  errEl.style.display = 'none';
+
+  if (!tfCsrfFiles.pcc || !tfCsrfFiles.notas) {
+    errEl.textContent = 'Selecione os dois arquivos: PCC e PCC Notas Fiscais.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('tf-csrf-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processando…';
+
+  const fd = new FormData();
+  fd.append('pcc', tfCsrfFiles.pcc);
+  fd.append('notas_fiscais', tfCsrfFiles.notas);
+
+  try {
+    const res = await fetch('/tributofacil/retencoes-csrf/processar', {
+      method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() },
+    });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      throw new Error(data?.detail || 'Erro ao processar os arquivos.');
+    }
+
+    const total = parseFloat(res.headers.get('X-Csrf-Total') || '0');
+    const qtd = res.headers.get('X-Csrf-Qtd-Linhas') || '0';
+    const qtdAvisos = parseInt(res.headers.get('X-Csrf-Qtd-Avisos') || '0', 10);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : 'retencoes_csrf.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    document.getElementById('tf-csrf-resumo').innerHTML = `
+      <div class="card">
+        <div class="card-label">Linhas processadas</div>
+        <div class="card-value">${qtd}</div>
+      </div>
+      <div class="card accent-red">
+        <div class="card-label">Total Retido</div>
+        <div class="card-value">${brl(total)}</div>
+      </div>
+      ${qtdAvisos > 0 ? `
+        <div class="alert-box warn">
+          <div class="alert-icon">⚠️</div>
+          <div>
+            <div class="alert-title">Avisos</div>
+            <div class="alert-desc">${qtdAvisos} aviso(s) — confira a aba "Avisos" no Excel gerado.</div>
+          </div>
+        </div>` : ''}
+    `;
+    showToast('✓ Excel gerado e baixado com sucesso', 'ok', 4000);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = !(tfCsrfFiles.pcc && tfCsrfFiles.notas);
     btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
   }
 }
