@@ -255,7 +255,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 /* ══════════════════════════════════
    EXPORT PAGE
 ══════════════════════════════════ */
-.export-body { flex: 1; display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; }
+.export-body { flex: 1; display: grid; grid-template-columns: 1fr 380px; overflow: hidden; }
 .export-left { padding: 28px 24px 28px 28px; overflow: auto; display: flex; flex-direction: column; gap: 16px; }
 .export-right { background: var(--white); border-left: 1px solid var(--gray200); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; gap: 20px; overflow: auto; }
 .export-right .export-icon { font-size: 64px; }
@@ -2548,8 +2548,8 @@ function expIcMudarModo(modo) {
   expIcState.modo = modo;
   document.getElementById('exp-ic-mes-row').style.display = modo === 'mes' ? 'flex' : 'none';
   document.getElementById('exp-ic-trim-row').style.display = modo === 'trimestre' ? 'flex' : 'none';
-  document.getElementById('exp-ic-mes-body').style.display = modo === 'mes' ? 'flex' : 'none';
-  document.getElementById('exp-ic-trim-body').style.display = modo === 'trimestre' ? 'flex' : 'none';
+  document.getElementById('exp-ic-mes-body').style.display = modo === 'mes' ? 'grid' : 'none';
+  document.getElementById('exp-ic-trim-body').style.display = modo === 'trimestre' ? 'grid' : 'none';
 }
 
 async function expIcCarregarMes(sessionId) {
