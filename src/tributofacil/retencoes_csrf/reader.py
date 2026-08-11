@@ -39,6 +39,7 @@ COLS_NOTAS = {
     "data_documento": "Data do documento",
     "valor_total": "Valor total",
     "descricao_operacao": "Descrição da operação",
+    "estabelecimento": "ID do estabelecimento fiscal",
 }
 
 COLS_NATUREZA = {

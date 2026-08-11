@@ -16,6 +16,7 @@ COLUNAS_SAIDA = [
     "CNPJ do Fornecedor",
     "Data do Arquivo PCC",
     "Número da Nota Fiscal",
+    "SITE",
     "Código do Imposto Retido na Fonte",
     "Origem do Valor",
     "Valor do Imposto Retido na Fonte",
@@ -35,13 +36,14 @@ def consolidar(df_pcc: pd.DataFrame, df_notas: pd.DataFrame) -> tuple[pd.DataFra
 
     notas_slim = df_notas[[
         COLS_NOTAS["comprovante"], COLS_NOTAS["numero_nf"], COLS_NOTAS["conta"],
-        COLS_NOTAS["nome"], COLS_NOTAS["cnpj"],
+        COLS_NOTAS["nome"], COLS_NOTAS["cnpj"], COLS_NOTAS["estabelecimento"],
     ]].rename(columns={
         COLS_NOTAS["comprovante"]: "_comprovante_nf",
         COLS_NOTAS["numero_nf"]: "Número da Nota Fiscal",
         COLS_NOTAS["conta"]: "Código do Fornecedor",
         COLS_NOTAS["nome"]: "Nome/Razão Social do Fornecedor",
         COLS_NOTAS["cnpj"]: "CNPJ do Fornecedor",
+        COLS_NOTAS["estabelecimento"]: "SITE",
     })
 
     duplicados = notas_slim[notas_slim.duplicated("_comprovante_nf", keep=False)]
@@ -73,6 +75,7 @@ def consolidar(df_pcc: pd.DataFrame, df_notas: pd.DataFrame) -> tuple[pd.DataFra
         "CNPJ do Fornecedor": merged["CNPJ do Fornecedor"],
         "Data do Arquivo PCC": merged[COLS_PCC["data"]],
         "Número da Nota Fiscal": merged["Número da Nota Fiscal"],
+        "SITE": merged["SITE"],
         "Código do Imposto Retido na Fonte": merged[COLS_PCC["codigo_imposto"]],
         "Origem do Valor": merged[COLS_PCC["origem_valor"]],
         "Valor do Imposto Retido na Fonte": merged[COLS_PCC["valor_retido"]],

@@ -19,6 +19,7 @@ LARGURAS = {
     "CNPJ do Fornecedor": 18,
     "Data do Arquivo PCC": 14,
     "Número da Nota Fiscal": 16,
+    "SITE": 14,
     "Código do Imposto Retido na Fonte": 18,
     "Origem do Valor": 14,
     "Valor do Imposto Retido na Fonte": 18,
