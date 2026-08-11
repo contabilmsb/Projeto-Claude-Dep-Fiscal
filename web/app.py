@@ -52,10 +52,11 @@ from src.tributofacil.difal_bahia.calculator import (
     ALIQUOTA_INTERNA_BA,
     ALIQUOTA_INTERNA_CONVENIO_5291,
 )
-from src.tributofacil.retencoes_csrf.reader import load_pcc, load_notas
+from src.tributofacil.retencoes_csrf.reader import load_pcc, load_notas, load_natureza
 from src.tributofacil.retencoes_csrf.consolidador import (
     consolidar as consolidar_retencoes_csrf,
     acumular_por_fornecedor as acumular_retencoes_csrf,
+    adicionar_natureza as adicionar_natureza_retencoes_csrf,
 )
 from src.tributofacil.retencoes_csrf.writer import gerar_excel as gerar_excel_retencoes_csrf
 from src.tributofacil.difal_bahia.writer import gerar_excel as gerar_excel_difal_bahia
@@ -610,6 +611,7 @@ async def tributofacil_difal_bahia_processar(arquivos: list[UploadFile] = File(.
 async def tributofacil_retencoes_csrf_processar(
     pcc: UploadFile = File(...),
     notas_fiscais: UploadFile = File(...),
+    natureza: UploadFile = File(...),
 ):
     tmp_dir = Path(tempfile.mkdtemp(prefix="retencoes_csrf_"))
     try:
@@ -617,6 +619,8 @@ async def tributofacil_retencoes_csrf_processar(
         pcc_path.write_bytes(await pcc.read())
         notas_path = tmp_dir / notas_fiscais.filename
         notas_path.write_bytes(await notas_fiscais.read())
+        natureza_path = tmp_dir / natureza.filename
+        natureza_path.write_bytes(await natureza.read())
 
         try:
             df_pcc = load_pcc(pcc_path)
@@ -628,11 +632,19 @@ async def tributofacil_retencoes_csrf_processar(
             raise HTTPException(
                 status_code=422, detail=f"Arquivo PCC Notas Fiscais ({notas_fiscais.filename}): {e}"
             )
+        try:
+            df_natureza = load_natureza(natureza_path)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Arquivo Natureza ({natureza.filename}): {e}")
 
         df_saida, avisos = consolidar_retencoes_csrf(df_pcc, df_notas)
         if df_saida.empty:
             raise HTTPException(status_code=422, detail="Nenhum registro encontrado para consolidar.")
         df_acumulado = acumular_retencoes_csrf(df_saida)
+
+        df_saida, avisos_natureza = adicionar_natureza_retencoes_csrf(df_saida, df_natureza)
+        df_acumulado, _ = adicionar_natureza_retencoes_csrf(df_acumulado, df_natureza)
+        avisos += avisos_natureza
 
         excel_bytes = gerar_excel_retencoes_csrf(df_saida, df_acumulado, avisos)
         total_retido = float(df_saida["Valor do Imposto Retido na Fonte"].fillna(0).sum())

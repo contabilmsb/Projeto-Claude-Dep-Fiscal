@@ -7,10 +7,11 @@ PCC Notas Fiscais."Comprovante".
 
 import pandas as pd
 
-from .reader import COLS_PCC, COLS_NOTAS
+from .reader import COLS_PCC, COLS_NOTAS, COLS_NATUREZA
 
 COLUNAS_SAIDA = [
     "Código do Fornecedor",
+    "Natureza",
     "Nome/Razão Social do Fornecedor",
     "CNPJ do Fornecedor",
     "Data do Arquivo PCC",
@@ -80,6 +81,38 @@ def consolidar(df_pcc: pd.DataFrame, df_notas: pd.DataFrame) -> tuple[pd.DataFra
     })
 
     return saida, avisos
+
+
+def adicionar_natureza(df: pd.DataFrame, df_natureza: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """
+    Acrescenta a coluna "Natureza" (logo após "Código do Fornecedor"),
+    relacionando pelo código do fornecedor — planilha Natureza."Conta de
+    fornecedor" = "Código do Fornecedor" já presente em `df`.
+    """
+    avisos = []
+
+    natureza_slim = df_natureza[[COLS_NATUREZA["conta_fornecedor"], COLS_NATUREZA["natureza"]]].rename(
+        columns={COLS_NATUREZA["conta_fornecedor"]: "Código do Fornecedor", COLS_NATUREZA["natureza"]: "Natureza"}
+    )
+    duplicados = natureza_slim[natureza_slim.duplicated("Código do Fornecedor", keep=False)]
+    if not duplicados.empty:
+        for cod in sorted(duplicados["Código do Fornecedor"].dropna().unique()):
+            avisos.append(
+                f"Fornecedor {cod} aparece mais de uma vez na planilha Natureza — usada a primeira ocorrência."
+            )
+    natureza_slim = natureza_slim.drop_duplicates("Código do Fornecedor", keep="first")
+
+    resultado = df.merge(natureza_slim, on="Código do Fornecedor", how="left")
+
+    sem_natureza = resultado[resultado["Natureza"].isna()]["Código do Fornecedor"].dropna().unique()
+    for cod in sorted(sem_natureza):
+        avisos.append(f"Fornecedor {cod}: código de Natureza não encontrado na planilha Natureza.")
+
+    colunas = list(resultado.columns)
+    colunas.remove("Natureza")
+    idx = colunas.index("Código do Fornecedor") + 1
+    colunas.insert(idx, "Natureza")
+    return resultado[colunas], avisos
 
 
 def acumular_por_fornecedor(df_saida: pd.DataFrame) -> pd.DataFrame:

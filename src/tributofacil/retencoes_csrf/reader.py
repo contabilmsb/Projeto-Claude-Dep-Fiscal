@@ -2,15 +2,17 @@
 Leitura das planilhas de origem da apuração de Retenções CSRF
 (COFINS/CSLL/PIS retidos na fonte sobre pagamentos a fornecedores).
 
-Duas planilhas são necessárias:
+Três planilhas são necessárias:
   - PCC: uma linha por retenção (COFINS RET / CSLL RET / PIS RET) de cada
     comprovante de pagamento.
   - PCC Notas Fiscais: uma linha por nota fiscal/comprovante, com os dados
     do fornecedor.
+  - Natureza: uma linha por fornecedor, com o código de natureza associado.
 
-As duas se relacionam pelo número do comprovante: a coluna "Comprovante
-de fatura" da planilha PCC corresponde à coluna "Comprovante" da planilha
-de Notas Fiscais.
+PCC e PCC Notas Fiscais se relacionam pelo número do comprovante: a coluna
+"Comprovante de fatura" da planilha PCC corresponde à coluna "Comprovante"
+da planilha de Notas Fiscais. A planilha Natureza se relaciona com as
+demais pelo código do fornecedor ("Conta de fornecedor").
 """
 
 import pandas as pd
@@ -39,6 +41,11 @@ COLS_NOTAS = {
     "descricao_operacao": "Descrição da operação",
 }
 
+COLS_NATUREZA = {
+    "conta_fornecedor": "Conta de fornecedor",
+    "natureza": "Natureza",
+}
+
 
 def _validar_colunas(df: pd.DataFrame, colunas: dict):
     faltantes = [v for v in colunas.values() if v not in df.columns]
@@ -60,4 +67,11 @@ def load_notas(path: Path) -> pd.DataFrame:
     """Lê a planilha PCC Notas Fiscais (uma linha por comprovante/nota fiscal)."""
     df = pd.read_excel(path, sheet_name=0)
     _validar_colunas(df, COLS_NOTAS)
+    return df
+
+
+def load_natureza(path: Path) -> pd.DataFrame:
+    """Lê a planilha Natureza (código de natureza por fornecedor)."""
+    df = pd.read_excel(path, sheet_name=0)
+    _validar_colunas(df, COLS_NATUREZA)
     return df

@@ -14,6 +14,7 @@ HEADER_FONT = Font(color="FFFFFF", bold=True, size=10)
 
 LARGURAS = {
     "Código do Fornecedor": 16,
+    "Natureza": 12,
     "Nome/Razão Social do Fornecedor": 40,
     "CNPJ do Fornecedor": 18,
     "Data do Arquivo PCC": 14,
@@ -29,6 +30,7 @@ COLS_DATA = {"Data do Arquivo PCC"}
 
 LARGURAS_ACUMULADO = {
     "Código do Fornecedor": 16,
+    "Natureza": 12,
     "Nome/Razão Social do Fornecedor": 40,
     "CNPJ do Fornecedor": 18,
     "Data do Arquivo PCC (mais recente)": 22,
