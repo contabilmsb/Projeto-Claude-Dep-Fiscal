@@ -124,14 +124,18 @@ def acumular_por_fornecedor(df_saida: pd.DataFrame) -> pd.DataFrame:
     imposto (PIS/COFINS/CSLL) em colunas separadas — sem o número da nota
     fiscal ou do comprovante, já que uma linha aqui pode somar vários
     comprovantes — e usa a data mais recente entre os lançamentos do
-    fornecedor.
+    fornecedor. Quando um mesmo fornecedor tem lançamentos em mais de um
+    SITE (estabelecimento fiscal), os valores são desmembrados em uma
+    linha por (fornecedor, SITE), preservando essa granularidade mesmo
+    sem exibir o número da nota fiscal.
     """
     df = df_saida.copy()
     df["_coluna_imposto"] = df["Código do Imposto Retido na Fonte"].map(CODIGO_PARA_COLUNA)
     df["_coluna_imposto"] = df["_coluna_imposto"].fillna(df["Código do Imposto Retido na Fonte"])
+    df["SITE"] = df["SITE"].fillna("(sem SITE)")
 
     pivot = df.pivot_table(
-        index=["Código do Fornecedor", "Nome/Razão Social do Fornecedor", "CNPJ do Fornecedor"],
+        index=["Código do Fornecedor", "SITE", "Nome/Razão Social do Fornecedor", "CNPJ do Fornecedor"],
         columns="_coluna_imposto",
         values="Valor do Imposto Retido na Fonte",
         aggfunc="sum",
@@ -144,16 +148,16 @@ def acumular_por_fornecedor(df_saida: pd.DataFrame) -> pd.DataFrame:
             pivot[col] = 0.0
 
     datas = (
-        df.groupby("Código do Fornecedor")["Data do Arquivo PCC"]
+        df.groupby(["Código do Fornecedor", "SITE"])["Data do Arquivo PCC"]
         .max()
         .rename("Data do Arquivo PCC (mais recente)")
     )
-    pivot = pivot.merge(datas, on="Código do Fornecedor", how="left")
+    pivot = pivot.merge(datas, on=["Código do Fornecedor", "SITE"], how="left")
 
     pivot["Total Retido"] = pivot["COFINS Retido"] + pivot["CSLL Retido"] + pivot["PIS Retido"]
 
     colunas_finais = [
-        "Código do Fornecedor", "Nome/Razão Social do Fornecedor", "CNPJ do Fornecedor",
+        "Código do Fornecedor", "SITE", "Nome/Razão Social do Fornecedor", "CNPJ do Fornecedor",
         "Data do Arquivo PCC (mais recente)", "COFINS Retido", "CSLL Retido", "PIS Retido", "Total Retido",
     ]
-    return pivot[colunas_finais].sort_values("Código do Fornecedor").reset_index(drop=True)
+    return pivot[colunas_finais].sort_values(["Código do Fornecedor", "SITE"]).reset_index(drop=True)

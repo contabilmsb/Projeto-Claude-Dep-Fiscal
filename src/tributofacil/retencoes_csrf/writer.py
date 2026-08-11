@@ -32,6 +32,7 @@ COLS_DATA = {"Data do Arquivo PCC"}
 LARGURAS_ACUMULADO = {
     "Código do Fornecedor": 16,
     "Natureza": 12,
+    "SITE": 14,
     "Nome/Razão Social do Fornecedor": 40,
     "CNPJ do Fornecedor": 18,
     "Data do Arquivo PCC (mais recente)": 22,
