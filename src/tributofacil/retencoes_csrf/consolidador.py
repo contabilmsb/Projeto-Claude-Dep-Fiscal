@@ -154,10 +154,22 @@ def acumular_por_fornecedor(df_saida: pd.DataFrame) -> pd.DataFrame:
     )
     pivot = pivot.merge(datas, on=["Código do Fornecedor", "SITE"], how="left")
 
+    # A base de cálculo ("Origem do Valor") é a mesma para as 3 linhas de
+    # imposto (COFINS/CSLL/PIS) de um mesmo comprovante — soma-se uma única
+    # vez por comprovante para não triplicar o valor ao acumular.
+    base_calculo = (
+        df.drop_duplicates(["Código do Fornecedor", "SITE", "Comprovante"])
+        .groupby(["Código do Fornecedor", "SITE"])["Origem do Valor"]
+        .sum()
+        .rename("Base de Cálculo")
+    )
+    pivot = pivot.merge(base_calculo, on=["Código do Fornecedor", "SITE"], how="left")
+
     pivot["Total Retido"] = pivot["COFINS Retido"] + pivot["CSLL Retido"] + pivot["PIS Retido"]
 
     colunas_finais = [
         "Código do Fornecedor", "SITE", "Nome/Razão Social do Fornecedor", "CNPJ do Fornecedor",
-        "Data do Arquivo PCC (mais recente)", "COFINS Retido", "CSLL Retido", "PIS Retido", "Total Retido",
+        "Data do Arquivo PCC (mais recente)", "Base de Cálculo",
+        "COFINS Retido", "CSLL Retido", "PIS Retido", "Total Retido",
     ]
     return pivot[colunas_finais].sort_values(["Código do Fornecedor", "SITE"]).reset_index(drop=True)

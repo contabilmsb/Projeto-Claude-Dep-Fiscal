@@ -36,12 +36,13 @@ LARGURAS_ACUMULADO = {
     "Nome/Razão Social do Fornecedor": 40,
     "CNPJ do Fornecedor": 18,
     "Data do Arquivo PCC (mais recente)": 22,
+    "Base de Cálculo": 16,
     "COFINS Retido": 14,
     "CSLL Retido": 14,
     "PIS Retido": 14,
     "Total Retido": 14,
 }
-COLS_MOEDA_ACUMULADO = {"COFINS Retido", "CSLL Retido", "PIS Retido", "Total Retido"}
+COLS_MOEDA_ACUMULADO = {"Base de Cálculo", "COFINS Retido", "CSLL Retido", "PIS Retido", "Total Retido"}
 COLS_DATA_ACUMULADO = {"Data do Arquivo PCC (mais recente)"}
 
 
@@ -98,7 +99,7 @@ def gerar_excel(df: pd.DataFrame, df_acumulado: pd.DataFrame, avisos: list[str])
     ws_acum = wb.create_sheet("Acumulado por Fornecedor")
     _escrever_planilha(
         ws_acum, df_acumulado, LARGURAS_ACUMULADO, COLS_MOEDA_ACUMULADO, COLS_DATA_ACUMULADO,
-        colunas_total=["COFINS Retido", "CSLL Retido", "PIS Retido", "Total Retido"],
+        colunas_total=["Base de Cálculo", "COFINS Retido", "CSLL Retido", "PIS Retido", "Total Retido"],
     )
 
     if avisos:
