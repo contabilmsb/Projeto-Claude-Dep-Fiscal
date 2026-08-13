@@ -657,7 +657,8 @@ async def tributofacil_retencoes_csrf_processar(
         df_saida, avisos = consolidar_retencoes_csrf(df_pcc, df_notas)
         if df_saida.empty:
             raise HTTPException(status_code=422, detail="Nenhum registro encontrado para consolidar.")
-        df_acumulado = acumular_retencoes_csrf(df_saida)
+        df_acumulado, avisos_acumulado = acumular_retencoes_csrf(df_saida)
+        avisos += avisos_acumulado
 
         df_saida, avisos_natureza = adicionar_natureza_retencoes_csrf(df_saida, df_natureza)
         df_acumulado, _ = adicionar_natureza_retencoes_csrf(df_acumulado, df_natureza)

@@ -31,6 +31,24 @@ CODIGO_PARA_COLUNA = {
 }
 
 
+def _mapear_coluna_imposto(codigo) -> str:
+    """
+    Identifica a que imposto (COFINS/CSLL/PIS) um código se refere, tolerando
+    variações de separador entre planilhas (ex.: "COFINS RET", "COFINS-RET",
+    "COFINS_RET"). Códigos que não contenham nenhum desses três nomes são
+    devolvidos como estão, para virarem aviso em vez de serem descartados
+    silenciosamente do total.
+    """
+    codigo_norm = str(codigo).upper()
+    if "COFINS" in codigo_norm:
+        return "COFINS Retido"
+    if "CSLL" in codigo_norm:
+        return "CSLL Retido"
+    if "PIS" in codigo_norm:
+        return "PIS Retido"
+    return str(codigo)
+
+
 def consolidar(df_pcc: pd.DataFrame, df_notas: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     avisos = []
 
@@ -118,7 +136,7 @@ def adicionar_natureza(df: pd.DataFrame, df_natureza: pd.DataFrame) -> tuple[pd.
     return resultado[colunas], avisos
 
 
-def acumular_por_fornecedor(df_saida: pd.DataFrame) -> pd.DataFrame:
+def acumular_por_fornecedor(df_saida: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     """
     Resumo acumulado por fornecedor: soma os valores retidos de cada
     imposto (PIS/COFINS/CSLL) em colunas separadas — sem o número da nota
@@ -129,10 +147,18 @@ def acumular_por_fornecedor(df_saida: pd.DataFrame) -> pd.DataFrame:
     linha por (fornecedor, SITE), preservando essa granularidade mesmo
     sem exibir o número da nota fiscal.
     """
+    avisos = []
     df = df_saida.copy()
-    df["_coluna_imposto"] = df["Código do Imposto Retido na Fonte"].map(CODIGO_PARA_COLUNA)
-    df["_coluna_imposto"] = df["_coluna_imposto"].fillna(df["Código do Imposto Retido na Fonte"])
+    df["_coluna_imposto"] = df["Código do Imposto Retido na Fonte"].apply(_mapear_coluna_imposto)
     df["SITE"] = df["SITE"].fillna("(sem SITE)")
+
+    colunas_conhecidas = set(CODIGO_PARA_COLUNA.values())
+    desconhecidos = sorted(set(df["_coluna_imposto"]) - colunas_conhecidas)
+    for codigo in desconhecidos:
+        avisos.append(
+            f"Código de imposto \"{codigo}\" não reconhecido como COFINS/CSLL/PIS — o valor está incluído "
+            f"na aba de detalhe, mas não entra nas colunas de imposto da aba 'Acumulado por Fornecedor'."
+        )
 
     pivot = df.pivot_table(
         index=["Código do Fornecedor", "SITE", "Nome/Razão Social do Fornecedor", "CNPJ do Fornecedor"],
@@ -172,4 +198,5 @@ def acumular_por_fornecedor(df_saida: pd.DataFrame) -> pd.DataFrame:
         "Data do Arquivo PCC (mais recente)", "Base de Cálculo",
         "COFINS Retido", "CSLL Retido", "PIS Retido", "Total Retido",
     ]
-    return pivot[colunas_finais].sort_values(["Código do Fornecedor", "SITE"]).reset_index(drop=True)
+    resultado = pivot[colunas_finais].sort_values(["Código do Fornecedor", "SITE"]).reset_index(drop=True)
+    return resultado, avisos
