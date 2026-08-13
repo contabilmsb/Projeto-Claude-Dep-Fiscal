@@ -1006,6 +1006,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     <div class="rtab active" id="tf-tab-difal" onclick="tfSwitchTab('difal')">Difal Compras Fora do Estado - Uso e Consumo / Ativo Fixo</div>
     <div class="rtab" id="tf-tab-csrf" onclick="tfSwitchTab('csrf')">Retenções CSRF</div>
     <div class="rtab" id="tf-tab-irrf" onclick="tfSwitchTab('irrf')">Retenções IRRF</div>
+    <div class="rtab" id="tf-tab-inss" onclick="tfSwitchTab('inss')">Retenções INSS</div>
   </div>
 
   <div class="upload-body" id="tf-panel-difal">
@@ -1163,6 +1164,56 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         com uma aba de avisos quando algum comprovante não é encontrado nas duas planilhas.
       </p>
       <div id="tf-irrf-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+
+  <div class="upload-body" id="tf-panel-inss" style="display:none;">
+    <div class="upload-left">
+      <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
+        <div class="section-label">Retenções INSS</div>
+        <p style="font-size:12px;color:var(--gray600);line-height:1.6;margin:0;">
+          Envie a planilha <strong>INSS</strong> (uma linha por retenção de INSS de cada comprovante de pagamento)
+          e a planilha <strong>INSS Notas Fiscais</strong> (dados do fornecedor por comprovante). O sistema
+          relaciona as duas planilhas pelo número do comprovante — coluna "Comprovante" em ambas — gerando uma
+          única planilha consolidada com o fornecedor, a nota fiscal e o valor retido de cada linha.
+        </p>
+        <div class="upload-grid" style="grid-template-columns: repeat(2, 1fr);">
+          <div class="file-slot" id="tf-inss-slot-inss" onclick="document.getElementById('tf-inss-file-inss').click()">
+            <input type="file" id="tf-inss-file-inss" accept=".xlsx,.xls" onchange="tfInssOnFileSelected('inss', this)" onclick="event.stopPropagation()">
+            <div class="slot-icon">📄</div>
+            <div class="slot-label">INSS (Retenções) *</div>
+            <div class="slot-name" id="tf-inss-slot-name-inss">Selecionar</div>
+          </div>
+          <div class="file-slot" id="tf-inss-slot-notas" onclick="document.getElementById('tf-inss-file-notas').click()">
+            <input type="file" id="tf-inss-file-notas" accept=".xlsx,.xls" onchange="tfInssOnFileSelected('notas', this)" onclick="event.stopPropagation()">
+            <div class="slot-icon">🧾</div>
+            <div class="slot-label">INSS Notas Fiscais *</div>
+            <div class="slot-name" id="tf-inss-slot-name-notas">Selecionar</div>
+          </div>
+        </div>
+        <div class="error-msg" id="tf-inss-error" style="display:none;"></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="tfInssProcessar()" id="tf-inss-btn" disabled style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Processar e Baixar Excel
+          </button>
+          <button class="btn btn-secondary" onclick="tfInssLimparAnexos()" style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Limpar Anexos
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-right">
+      <h3>Como funciona</h3>
+      <p style="font-size:12px;color:var(--gray600);line-height:1.7;">
+        1. Selecione a planilha INSS e a planilha INSS Notas Fiscais da mesma competência.<br>
+        2. O sistema relaciona cada retenção à respectiva nota fiscal pelo número do comprovante.<br>
+        3. Nada é salvo no sistema — o resultado sai direto em um Excel para download,
+        com uma aba de avisos quando algum comprovante não é encontrado nas duas planilhas.
+      </p>
+      <div id="tf-inss-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
 </div>
@@ -2746,9 +2797,11 @@ function tfSwitchTab(tab) {
   document.getElementById('tf-tab-difal').classList.toggle('active', tab === 'difal');
   document.getElementById('tf-tab-csrf').classList.toggle('active', tab === 'csrf');
   document.getElementById('tf-tab-irrf').classList.toggle('active', tab === 'irrf');
+  document.getElementById('tf-tab-inss').classList.toggle('active', tab === 'inss');
   document.getElementById('tf-panel-difal').style.display = tab === 'difal' ? 'grid' : 'none';
   document.getElementById('tf-panel-csrf').style.display = tab === 'csrf' ? 'grid' : 'none';
   document.getElementById('tf-panel-irrf').style.display = tab === 'irrf' ? 'grid' : 'none';
+  document.getElementById('tf-panel-inss').style.display = tab === 'inss' ? 'grid' : 'none';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -3079,6 +3132,125 @@ async function tfIrrfProcessar() {
     errEl.style.display = 'block';
   } finally {
     btn.disabled = !(tfIrrfFiles.irrf && tfIrrfFiles.notas && tfIrrfFiles.natureza);
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Tributo Fácil — Retenções INSS
+// ══════════════════════════════════════════════════════════════════
+const tfInssFiles = {};
+
+function _validarArquivoInss(tipo, file, input) {
+  const nome = _normalizarNome(file.name);
+  if (tipo === 'inss' && (!nome.includes('inss') || nome.includes('notas'))) {
+    input.value = '';
+    showToast('⚠ Arquivo incorreto para "INSS (Retenções)" — selecione a planilha INSS (não a de Notas Fiscais).', 'warn', 6000);
+    return false;
+  }
+  if (tipo === 'notas' && !nome.includes('notas')) {
+    input.value = '';
+    showToast('⚠ Arquivo incorreto para "INSS Notas Fiscais" — o nome do arquivo precisa conter "notas".', 'warn', 6000);
+    return false;
+  }
+  return true;
+}
+
+function tfInssOnFileSelected(tipo, input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!_validarArquivoInss(tipo, file, input)) return;
+  tfInssFiles[tipo] = file;
+  document.getElementById(`tf-inss-slot-${tipo}`).classList.add('uploaded');
+  document.getElementById(`tf-inss-slot-name-${tipo}`).textContent = file.name;
+  document.getElementById('tf-inss-btn').disabled = !(tfInssFiles.inss && tfInssFiles.notas);
+}
+
+function tfInssLimparAnexos() {
+  ['inss', 'notas'].forEach(tipo => {
+    delete tfInssFiles[tipo];
+    const input = document.getElementById(`tf-inss-file-${tipo}`);
+    if (input) input.value = '';
+    const slotEl = document.getElementById(`tf-inss-slot-${tipo}`);
+    if (slotEl) slotEl.classList.remove('uploaded');
+    const nameEl = document.getElementById(`tf-inss-slot-name-${tipo}`);
+    if (nameEl) nameEl.textContent = 'Selecionar';
+  });
+  document.getElementById('tf-inss-btn').disabled = true;
+  const errEl = document.getElementById('tf-inss-error');
+  if (errEl) errEl.style.display = 'none';
+  const resumoEl = document.getElementById('tf-inss-resumo');
+  if (resumoEl) resumoEl.innerHTML = '';
+  showToast('✓ Anexos limpos — selecione os arquivos novamente.', 'ok', 3000);
+}
+
+async function tfInssProcessar() {
+  const errEl = document.getElementById('tf-inss-error');
+  errEl.style.display = 'none';
+
+  if (!tfInssFiles.inss || !tfInssFiles.notas) {
+    errEl.textContent = 'Selecione os dois arquivos: INSS e INSS Notas Fiscais.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('tf-inss-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processando…';
+
+  const fd = new FormData();
+  fd.append('inss', tfInssFiles.inss);
+  fd.append('notas_fiscais', tfInssFiles.notas);
+
+  try {
+    const res = await fetch('/tributofacil/retencoes-inss/processar', {
+      method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() },
+    });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      throw new Error(data?.detail || 'Erro ao processar os arquivos.');
+    }
+
+    const total = parseFloat(res.headers.get('X-Inss-Total') || '0');
+    const qtd = res.headers.get('X-Inss-Qtd-Linhas') || '0';
+    const qtdAvisos = parseInt(res.headers.get('X-Inss-Qtd-Avisos') || '0', 10);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : 'retencoes_inss.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    document.getElementById('tf-inss-resumo').innerHTML = `
+      <div class="card">
+        <div class="card-label">Linhas processadas</div>
+        <div class="card-value">${qtd}</div>
+      </div>
+      <div class="card accent-red">
+        <div class="card-label">Total Retido</div>
+        <div class="card-value">${brl(total)}</div>
+      </div>
+      ${qtdAvisos > 0 ? `
+        <div class="alert-box warn">
+          <div class="alert-icon">⚠️</div>
+          <div>
+            <div class="alert-title">Avisos</div>
+            <div class="alert-desc">${qtdAvisos} aviso(s) — confira a aba "Avisos" no Excel gerado.</div>
+          </div>
+        </div>` : ''}
+    `;
+    showToast('✓ Excel gerado e baixado com sucesso', 'ok', 4000);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = !(tfInssFiles.inss && tfInssFiles.notas);
     btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
   }
 }
