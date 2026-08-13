@@ -1007,6 +1007,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     <div class="rtab" id="tf-tab-csrf" onclick="tfSwitchTab('csrf')">Retenções CSRF</div>
     <div class="rtab" id="tf-tab-irrf" onclick="tfSwitchTab('irrf')">Retenções IRRF</div>
     <div class="rtab" id="tf-tab-inss" onclick="tfSwitchTab('inss')">Retenções INSS</div>
+    <div class="rtab" id="tf-tab-dirbi" onclick="tfSwitchTab('dirbi')">Dirbi</div>
   </div>
 
   <div class="upload-body" id="tf-panel-difal">
@@ -1214,6 +1215,51 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         com uma aba de avisos quando algum comprovante não é encontrado nas duas planilhas.
       </p>
       <div id="tf-inss-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+
+  <div class="upload-body" id="tf-panel-dirbi" style="display:none;">
+    <div class="upload-left">
+      <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
+        <div class="section-label">Dirbi</div>
+        <p style="font-size:12px;color:var(--gray600);line-height:1.6;margin:0;">
+          Envie a planilha do Dirbi do mês (ainda sem as colunas de imposto). O sistema localiza as colunas
+          "Base Cálculo PIS/COFINS", "PIS Total(R$)" e "COFINS Total(R$)" pelo nome do cabeçalho e insere logo em
+          seguida as colunas <strong>PIS %, COFINS %, PIS 2,1, COFINS 9,65, PIS e COFINS</strong>, com as mesmas
+          fórmulas e formatação do arquivo de referência — mantendo o restante da planilha (dados, colunas de
+          ICMS, etc.) intacto.
+        </p>
+        <div class="upload-grid" style="grid-template-columns: 1fr;">
+          <div class="file-slot" id="tf-dirbi-slot-arquivo" onclick="document.getElementById('tf-dirbi-file-arquivo').click()">
+            <input type="file" id="tf-dirbi-file-arquivo" accept=".xlsx,.xls" onchange="tfDirbiOnFileSelected(this)" onclick="event.stopPropagation()">
+            <div class="slot-icon">📄</div>
+            <div class="slot-label">Planilha Dirbi do mês *</div>
+            <div class="slot-name" id="tf-dirbi-slot-name-arquivo">Selecionar</div>
+          </div>
+        </div>
+        <div class="error-msg" id="tf-dirbi-error" style="display:none;"></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="tfDirbiProcessar()" id="tf-dirbi-btn" disabled style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Processar e Baixar Excel
+          </button>
+          <button class="btn btn-secondary" onclick="tfDirbiLimparAnexos()" style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Limpar Anexos
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-right">
+      <h3>Como funciona</h3>
+      <p style="font-size:12px;color:var(--gray600);line-height:1.7;">
+        1. Selecione a planilha do mês, exportada sem as colunas de cálculo.<br>
+        2. O sistema insere as 6 colunas de PIS/COFINS com as fórmulas do arquivo de referência.<br>
+        3. Nada é salvo no sistema — o resultado sai direto em um Excel para download. Se a planilha
+        enviada já tiver essas colunas, o sistema avisa e não altera nada.
+      </p>
+      <div id="tf-dirbi-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
 </div>
@@ -2798,10 +2844,12 @@ function tfSwitchTab(tab) {
   document.getElementById('tf-tab-csrf').classList.toggle('active', tab === 'csrf');
   document.getElementById('tf-tab-irrf').classList.toggle('active', tab === 'irrf');
   document.getElementById('tf-tab-inss').classList.toggle('active', tab === 'inss');
+  document.getElementById('tf-tab-dirbi').classList.toggle('active', tab === 'dirbi');
   document.getElementById('tf-panel-difal').style.display = tab === 'difal' ? 'grid' : 'none';
   document.getElementById('tf-panel-csrf').style.display = tab === 'csrf' ? 'grid' : 'none';
   document.getElementById('tf-panel-irrf').style.display = tab === 'irrf' ? 'grid' : 'none';
   document.getElementById('tf-panel-inss').style.display = tab === 'inss' ? 'grid' : 'none';
+  document.getElementById('tf-panel-dirbi').style.display = tab === 'dirbi' ? 'grid' : 'none';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -3251,6 +3299,102 @@ async function tfInssProcessar() {
     errEl.style.display = 'block';
   } finally {
     btn.disabled = !(tfInssFiles.inss && tfInssFiles.notas);
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Tributo Fácil — Dirbi
+// ══════════════════════════════════════════════════════════════════
+const tfDirbiFiles = {};
+
+function tfDirbiOnFileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  tfDirbiFiles.arquivo = file;
+  document.getElementById('tf-dirbi-slot-arquivo').classList.add('uploaded');
+  document.getElementById('tf-dirbi-slot-name-arquivo').textContent = file.name;
+  document.getElementById('tf-dirbi-btn').disabled = !tfDirbiFiles.arquivo;
+}
+
+function tfDirbiLimparAnexos() {
+  delete tfDirbiFiles.arquivo;
+  const input = document.getElementById('tf-dirbi-file-arquivo');
+  if (input) input.value = '';
+  const slotEl = document.getElementById('tf-dirbi-slot-arquivo');
+  if (slotEl) slotEl.classList.remove('uploaded');
+  const nameEl = document.getElementById('tf-dirbi-slot-name-arquivo');
+  if (nameEl) nameEl.textContent = 'Selecionar';
+  document.getElementById('tf-dirbi-btn').disabled = true;
+  const errEl = document.getElementById('tf-dirbi-error');
+  if (errEl) errEl.style.display = 'none';
+  const resumoEl = document.getElementById('tf-dirbi-resumo');
+  if (resumoEl) resumoEl.innerHTML = '';
+  showToast('✓ Anexos limpos — selecione o arquivo novamente.', 'ok', 3000);
+}
+
+async function tfDirbiProcessar() {
+  const errEl = document.getElementById('tf-dirbi-error');
+  errEl.style.display = 'none';
+
+  if (!tfDirbiFiles.arquivo) {
+    errEl.textContent = 'Selecione a planilha do Dirbi do mês.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('tf-dirbi-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processando…';
+
+  const fd = new FormData();
+  fd.append('arquivo', tfDirbiFiles.arquivo);
+
+  try {
+    const res = await fetch('/tributofacil/dirbi/processar', {
+      method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() },
+    });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      throw new Error(data?.detail || 'Erro ao processar o arquivo.');
+    }
+
+    const qtd = res.headers.get('X-Dirbi-Qtd-Linhas') || '0';
+    const totalPis = parseFloat(res.headers.get('X-Dirbi-Total-Pis') || '0');
+    const totalCofins = parseFloat(res.headers.get('X-Dirbi-Total-Cofins') || '0');
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : 'dirbi.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    document.getElementById('tf-dirbi-resumo').innerHTML = `
+      <div class="card">
+        <div class="card-label">Linhas processadas</div>
+        <div class="card-value">${qtd}</div>
+      </div>
+      <div class="card accent-red">
+        <div class="card-label">Total PIS</div>
+        <div class="card-value">${brl(totalPis)}</div>
+      </div>
+      <div class="card accent-red">
+        <div class="card-label">Total COFINS</div>
+        <div class="card-value">${brl(totalCofins)}</div>
+      </div>
+    `;
+    showToast('✓ Excel gerado e baixado com sucesso', 'ok', 4000);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = !tfDirbiFiles.arquivo;
     btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
   }
 }
