@@ -1005,7 +1005,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
   <div class="right-tabs" style="max-width:520px;">
     <div class="rtab active" id="tf-tab-difal" onclick="tfSwitchTab('difal')">Difal Compras Fora do Estado - Uso e Consumo / Ativo Fixo</div>
     <div class="rtab" id="tf-tab-csrf" onclick="tfSwitchTab('csrf')">Retenções CSRF</div>
-    <div class="rtab" style="opacity:.35;cursor:not-allowed;" title="Em breve">IRRF</div>
+    <div class="rtab" id="tf-tab-irrf" onclick="tfSwitchTab('irrf')">Retenções IRRF</div>
   </div>
 
   <div class="upload-body" id="tf-panel-difal">
@@ -1105,6 +1105,64 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         com uma aba de avisos quando algum comprovante não é encontrado nas duas planilhas.
       </p>
       <div id="tf-csrf-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+
+  <div class="upload-body" id="tf-panel-irrf" style="display:none;">
+    <div class="upload-left">
+      <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
+        <div class="section-label">Retenções IRRF</div>
+        <p style="font-size:12px;color:var(--gray600);line-height:1.6;margin:0;">
+          Envie a planilha <strong>IRRF</strong> (uma linha por retenção de Imposto de Renda de cada comprovante de
+          pagamento), a planilha <strong>IRRF Notas Fiscais</strong> (dados do fornecedor por comprovante) e a
+          planilha <strong>Natureza</strong> (código de natureza por fornecedor). O sistema relaciona IRRF e Notas
+          Fiscais pelo número do comprovante — coluna "Comprovante" em ambas — e relaciona a Natureza pelo código
+          do fornecedor, gerando uma única planilha consolidada com o fornecedor, a natureza, a nota fiscal e o
+          valor retido de cada linha.
+        </p>
+        <div class="upload-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <div class="file-slot" id="tf-irrf-slot-irrf" onclick="document.getElementById('tf-irrf-file-irrf').click()">
+            <input type="file" id="tf-irrf-file-irrf" accept=".xlsx,.xls" onchange="tfIrrfOnFileSelected('irrf', this)" onclick="event.stopPropagation()">
+            <div class="slot-icon">📄</div>
+            <div class="slot-label">IRRF (Retenções) *</div>
+            <div class="slot-name" id="tf-irrf-slot-name-irrf">Selecionar</div>
+          </div>
+          <div class="file-slot" id="tf-irrf-slot-notas" onclick="document.getElementById('tf-irrf-file-notas').click()">
+            <input type="file" id="tf-irrf-file-notas" accept=".xlsx,.xls" onchange="tfIrrfOnFileSelected('notas', this)" onclick="event.stopPropagation()">
+            <div class="slot-icon">🧾</div>
+            <div class="slot-label">IRRF Notas Fiscais *</div>
+            <div class="slot-name" id="tf-irrf-slot-name-notas">Selecionar</div>
+          </div>
+          <div class="file-slot" id="tf-irrf-slot-natureza" onclick="document.getElementById('tf-irrf-file-natureza').click()">
+            <input type="file" id="tf-irrf-file-natureza" accept=".xlsx,.xls" onchange="tfIrrfOnFileSelected('natureza', this)" onclick="event.stopPropagation()">
+            <div class="slot-icon">🏷️</div>
+            <div class="slot-label">Natureza *</div>
+            <div class="slot-name" id="tf-irrf-slot-name-natureza">Selecionar</div>
+          </div>
+        </div>
+        <div class="error-msg" id="tf-irrf-error" style="display:none;"></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="tfIrrfProcessar()" id="tf-irrf-btn" disabled style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Processar e Baixar Excel
+          </button>
+          <button class="btn btn-secondary" onclick="tfIrrfLimparAnexos()" style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Limpar Anexos
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-right">
+      <h3>Como funciona</h3>
+      <p style="font-size:12px;color:var(--gray600);line-height:1.7;">
+        1. Selecione a planilha IRRF e a planilha IRRF Notas Fiscais da mesma competência.<br>
+        2. O sistema relaciona cada retenção à respectiva nota fiscal pelo número do comprovante.<br>
+        3. Nada é salvo no sistema — o resultado sai direto em um Excel para download,
+        com uma aba de avisos quando algum comprovante não é encontrado nas duas planilhas.
+      </p>
+      <div id="tf-irrf-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
 </div>
@@ -2687,8 +2745,10 @@ async function expIcBaixarExcel() {
 function tfSwitchTab(tab) {
   document.getElementById('tf-tab-difal').classList.toggle('active', tab === 'difal');
   document.getElementById('tf-tab-csrf').classList.toggle('active', tab === 'csrf');
+  document.getElementById('tf-tab-irrf').classList.toggle('active', tab === 'irrf');
   document.getElementById('tf-panel-difal').style.display = tab === 'difal' ? 'grid' : 'none';
   document.getElementById('tf-panel-csrf').style.display = tab === 'csrf' ? 'grid' : 'none';
+  document.getElementById('tf-panel-irrf').style.display = tab === 'irrf' ? 'grid' : 'none';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -2894,6 +2954,131 @@ async function tfCsrfProcessar() {
     errEl.style.display = 'block';
   } finally {
     btn.disabled = !(tfCsrfFiles.pcc && tfCsrfFiles.notas && tfCsrfFiles.natureza);
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Tributo Fácil — Retenções IRRF
+// ══════════════════════════════════════════════════════════════════
+const tfIrrfFiles = {};
+
+function _validarArquivoIrrf(tipo, file, input) {
+  const nome = _normalizarNome(file.name);
+  if (tipo === 'irrf' && (!nome.includes('irrf') || nome.includes('notas'))) {
+    input.value = '';
+    showToast('⚠ Arquivo incorreto para "IRRF (Retenções)" — selecione a planilha IRRF (não a de Notas Fiscais).', 'warn', 6000);
+    return false;
+  }
+  if (tipo === 'notas' && !nome.includes('notas')) {
+    input.value = '';
+    showToast('⚠ Arquivo incorreto para "IRRF Notas Fiscais" — o nome do arquivo precisa conter "notas".', 'warn', 6000);
+    return false;
+  }
+  if (tipo === 'natureza' && !nome.includes('natureza')) {
+    input.value = '';
+    showToast('⚠ Arquivo incorreto para "Natureza" — o nome do arquivo precisa conter "natureza".', 'warn', 6000);
+    return false;
+  }
+  return true;
+}
+
+function tfIrrfOnFileSelected(tipo, input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!_validarArquivoIrrf(tipo, file, input)) return;
+  tfIrrfFiles[tipo] = file;
+  document.getElementById(`tf-irrf-slot-${tipo}`).classList.add('uploaded');
+  document.getElementById(`tf-irrf-slot-name-${tipo}`).textContent = file.name;
+  document.getElementById('tf-irrf-btn').disabled = !(tfIrrfFiles.irrf && tfIrrfFiles.notas && tfIrrfFiles.natureza);
+}
+
+function tfIrrfLimparAnexos() {
+  ['irrf', 'notas', 'natureza'].forEach(tipo => {
+    delete tfIrrfFiles[tipo];
+    const input = document.getElementById(`tf-irrf-file-${tipo}`);
+    if (input) input.value = '';
+    const slotEl = document.getElementById(`tf-irrf-slot-${tipo}`);
+    if (slotEl) slotEl.classList.remove('uploaded');
+    const nameEl = document.getElementById(`tf-irrf-slot-name-${tipo}`);
+    if (nameEl) nameEl.textContent = 'Selecionar';
+  });
+  document.getElementById('tf-irrf-btn').disabled = true;
+  const errEl = document.getElementById('tf-irrf-error');
+  if (errEl) errEl.style.display = 'none';
+  const resumoEl = document.getElementById('tf-irrf-resumo');
+  if (resumoEl) resumoEl.innerHTML = '';
+  showToast('✓ Anexos limpos — selecione os arquivos novamente.', 'ok', 3000);
+}
+
+async function tfIrrfProcessar() {
+  const errEl = document.getElementById('tf-irrf-error');
+  errEl.style.display = 'none';
+
+  if (!tfIrrfFiles.irrf || !tfIrrfFiles.notas || !tfIrrfFiles.natureza) {
+    errEl.textContent = 'Selecione os três arquivos: IRRF, IRRF Notas Fiscais e Natureza.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('tf-irrf-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processando…';
+
+  const fd = new FormData();
+  fd.append('irrf', tfIrrfFiles.irrf);
+  fd.append('notas_fiscais', tfIrrfFiles.notas);
+  fd.append('natureza', tfIrrfFiles.natureza);
+
+  try {
+    const res = await fetch('/tributofacil/retencoes-irrf/processar', {
+      method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() },
+    });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      throw new Error(data?.detail || 'Erro ao processar os arquivos.');
+    }
+
+    const total = parseFloat(res.headers.get('X-Irrf-Total') || '0');
+    const qtd = res.headers.get('X-Irrf-Qtd-Linhas') || '0';
+    const qtdAvisos = parseInt(res.headers.get('X-Irrf-Qtd-Avisos') || '0', 10);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : 'retencoes_irrf.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    document.getElementById('tf-irrf-resumo').innerHTML = `
+      <div class="card">
+        <div class="card-label">Linhas processadas</div>
+        <div class="card-value">${qtd}</div>
+      </div>
+      <div class="card accent-red">
+        <div class="card-label">Total Retido</div>
+        <div class="card-value">${brl(total)}</div>
+      </div>
+      ${qtdAvisos > 0 ? `
+        <div class="alert-box warn">
+          <div class="alert-icon">⚠️</div>
+          <div>
+            <div class="alert-title">Avisos</div>
+            <div class="alert-desc">${qtdAvisos} aviso(s) — confira a aba "Avisos" no Excel gerado.</div>
+          </div>
+        </div>` : ''}
+    `;
+    showToast('✓ Excel gerado e baixado com sucesso', 'ok', 4000);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = !(tfIrrfFiles.irrf && tfIrrfFiles.notas && tfIrrfFiles.natureza);
     btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
   }
 }

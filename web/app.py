@@ -59,6 +59,17 @@ from src.tributofacil.retencoes_csrf.consolidador import (
     adicionar_natureza as adicionar_natureza_retencoes_csrf,
 )
 from src.tributofacil.retencoes_csrf.writer import gerar_excel as gerar_excel_retencoes_csrf
+from src.tributofacil.retencoes_irrf.reader import (
+    load_irrf,
+    load_notas as load_notas_irrf,
+    load_natureza as load_natureza_irrf,
+)
+from src.tributofacil.retencoes_irrf.consolidador import (
+    consolidar as consolidar_retencoes_irrf,
+    acumular_por_fornecedor as acumular_retencoes_irrf,
+    adicionar_natureza as adicionar_natureza_retencoes_irrf,
+)
+from src.tributofacil.retencoes_irrf.writer import gerar_excel as gerar_excel_retencoes_irrf
 from src.tributofacil.difal_bahia.writer import gerar_excel as gerar_excel_difal_bahia
 
 app = FastAPI(title="Apuração PIS/COFINS")
@@ -659,6 +670,68 @@ async def tributofacil_retencoes_csrf_processar(
                 "X-Csrf-Total": f"{total_retido:.2f}",
                 "X-Csrf-Qtd-Linhas": str(len(df_saida)),
                 "X-Csrf-Qtd-Avisos": str(len(avisos)),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@app.post("/tributofacil/retencoes-irrf/processar", dependencies=[Depends(require_auth)])
+async def tributofacil_retencoes_irrf_processar(
+    irrf: UploadFile = File(...),
+    notas_fiscais: UploadFile = File(...),
+    natureza: UploadFile = File(...),
+):
+    tmp_dir = Path(tempfile.mkdtemp(prefix="retencoes_irrf_"))
+    try:
+        irrf_path = tmp_dir / irrf.filename
+        irrf_path.write_bytes(await irrf.read())
+        notas_path = tmp_dir / notas_fiscais.filename
+        notas_path.write_bytes(await notas_fiscais.read())
+        natureza_path = tmp_dir / natureza.filename
+        natureza_path.write_bytes(await natureza.read())
+
+        try:
+            df_irrf = load_irrf(irrf_path)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Arquivo IRRF ({irrf.filename}): {e}")
+        try:
+            df_notas = load_notas_irrf(notas_path)
+        except Exception as e:
+            raise HTTPException(
+                status_code=422, detail=f"Arquivo IRRF Notas Fiscais ({notas_fiscais.filename}): {e}"
+            )
+        try:
+            df_natureza = load_natureza_irrf(natureza_path)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Arquivo Natureza ({natureza.filename}): {e}")
+
+        df_saida, avisos = consolidar_retencoes_irrf(df_irrf, df_notas)
+        if df_saida.empty:
+            raise HTTPException(status_code=422, detail="Nenhum registro encontrado para consolidar.")
+        df_acumulado = acumular_retencoes_irrf(df_saida)
+
+        df_saida, avisos_natureza = adicionar_natureza_retencoes_irrf(df_saida, df_natureza)
+        df_acumulado, _ = adicionar_natureza_retencoes_irrf(df_acumulado, df_natureza)
+        avisos += avisos_natureza
+
+        excel_bytes = gerar_excel_retencoes_irrf(df_saida, df_acumulado, avisos)
+        total_retido = float(df_saida["Valor do Imposto Retido na Fonte"].fillna(0).sum())
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Retencoes_IRRF_{ts}.xlsx"
+
+        return StreamingResponse(
+            iter([excel_bytes]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Irrf-Total": f"{total_retido:.2f}",
+                "X-Irrf-Qtd-Linhas": str(len(df_saida)),
+                "X-Irrf-Qtd-Avisos": str(len(avisos)),
             },
         )
     except HTTPException:
