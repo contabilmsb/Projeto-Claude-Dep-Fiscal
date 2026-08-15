@@ -781,11 +781,17 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       Recebimento - Notas Fiscais
       <span class="comp-badge" id="cons-comp"></span>
     </h2>
-    <div class="period-selector">
-      <span class="period-label">Competência:</span>
-      <select class="period-select" id="cons-period-select" onchange="trocarPeriodo('consolidacao', this.value)">
-        <option value="">— selecione —</option>
-      </select>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="period-selector">
+        <span class="period-label">Competência:</span>
+        <select class="period-select" id="cons-period-select" onchange="trocarPeriodo('consolidacao', this.value)">
+          <option value="">— selecione —</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="consExportar()" style="width:auto;padding:9px 18px;font-size:12px;" title="Exportar planilha da competência selecionada">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exportar
+      </button>
     </div>
   </div>
   <div class="cons-body">
@@ -1793,6 +1799,37 @@ async function exportar() {
   const a = document.createElement('a');
   a.href = url; a.download = document.getElementById('export-filename').textContent || 'apuracao.xlsx';
   a.click(); URL.revokeObjectURL(url);
+}
+
+// Exporta a planilha da competência selecionada na página "Recebimento - Notas Fiscais"
+async function consExportar() {
+  const sessionId = document.getElementById('cons-period-select').value;
+  if (!sessionId) {
+    showToast('⚠ Selecione uma competência específica para exportar.', 'warn', 4000);
+    return;
+  }
+  if (!_isLoggedIn()) { openLoginModal(); return; }
+
+  try {
+    const res = await fetch(`/exportar/${sessionId}`, { headers: { 'X-Auth-Token': _getToken() } });
+    if (!res.ok) { showToast('⚠ Erro ao baixar o arquivo. Faça login novamente.', 'warn', 4000); return; }
+
+    const sessao = _sessoes.find(s => s.id === sessionId);
+    const comp = (sessao?.competencia || '').replace('/', '.');
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = comp ? `Apuração PIS COFINS ${comp}.xlsx` : 'apuracao.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('✓ Excel baixado com sucesso', 'ok', 3000);
+  } catch (e) {
+    showToast('⚠ Erro ao baixar: ' + e.message, 'warn', 4000);
+  }
 }
 
 // ═══ Navegação ═══
