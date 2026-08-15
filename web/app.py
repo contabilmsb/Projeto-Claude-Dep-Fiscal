@@ -27,11 +27,13 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Req
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from src.readers import load_all
 from src.calculator import calcular
 from src.validator import validar
 from src.writer import atualizar_template
+from src.consolidacao_nf_writer import gerar_excel_consolidacao_nf
 
 from src.irpj_csll import readers as irpj_readers
 from src.irpj_csll.calculator import (
@@ -977,6 +979,38 @@ async def exportar(session_id: str, request: Request):
             filename=path.name,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+
+
+class LinhaConsolidacaoNF(BaseModel):
+    competencia: str | None = None
+    nf: str
+    cliente: str
+    recebido: float = 0
+    cofins_retido: float = 0
+    pis_retido: float = 0
+    csll_retido: float = 0
+    irrf: float = 0
+    juros: float = 0
+    base_liquida: float = 0
+
+
+class ExportarTabelaConsolidacaoRequest(BaseModel):
+    competencia_label: str = ""
+    linhas: list[LinhaConsolidacaoNF]
+
+
+@app.post("/exportar-tabela-consolidacao", dependencies=[Depends(require_auth)])
+async def exportar_tabela_consolidacao(body: ExportarTabelaConsolidacaoRequest):
+    linhas = [linha.model_dump() for linha in body.linhas]
+    excel_bytes = gerar_excel_consolidacao_nf(linhas, body.competencia_label)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"Recebimento_Notas_Fiscais_{ts}.xlsx"
+
+    return StreamingResponse(
+        iter([excel_bytes]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════

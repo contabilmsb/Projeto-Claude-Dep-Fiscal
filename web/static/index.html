@@ -1801,27 +1801,40 @@ async function exportar() {
   a.click(); URL.revokeObjectURL(url);
 }
 
-// Exporta a planilha da competência selecionada na página "Recebimento - Notas Fiscais"
+// Reconstrói exatamente as linhas visíveis na tabela (mesmo filtro de busca
+// aplicado por filterTable, na ordem atual — já refletida em consolidacaoData
+// pelo último sortTable()).
+function _consLinhasVisiveis() {
+  const q = document.getElementById('search-nf').value.toLowerCase();
+  return (appState.consolidacaoData || []).filter(r => r.nf.includes(q) || r.cliente.toLowerCase().includes(q));
+}
+
+// Exporta exatamente os dados exibidos na tela na página "Recebimento - Notas Fiscais"
 async function consExportar() {
-  const sessionId = document.getElementById('cons-period-select').value;
-  if (!sessionId) {
-    showToast('⚠ Selecione uma competência específica para exportar.', 'warn', 4000);
-    return;
-  }
   if (!_isLoggedIn()) { openLoginModal(); return; }
 
-  try {
-    const res = await fetch(`/exportar/${sessionId}`, { headers: { 'X-Auth-Token': _getToken() } });
-    if (!res.ok) { showToast('⚠ Erro ao baixar o arquivo. Faça login novamente.', 'warn', 4000); return; }
+  const linhas = _consLinhasVisiveis();
+  if (!linhas.length) {
+    showToast('⚠ Não há linhas para exportar.', 'warn', 4000);
+    return;
+  }
+  const competenciaLabel = document.getElementById('cons-comp').textContent || '';
 
-    const sessao = _sessoes.find(s => s.id === sessionId);
-    const comp = (sessao?.competencia || '').replace('/', '.');
+  try {
+    const res = await fetch('/exportar-tabela-consolidacao', {
+      method: 'POST',
+      headers: { 'X-Auth-Token': _getToken(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ competencia_label: competenciaLabel, linhas }),
+    });
+    if (!res.ok) { showToast('⚠ Erro ao baixar o arquivo. Faça login novamente.', 'warn', 4000); return; }
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = comp ? `Apuração PIS COFINS ${comp}.xlsx` : 'apuracao.xlsx';
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : 'recebimento_notas_fiscais.xlsx';
     document.body.appendChild(a);
     a.click();
     a.remove();
