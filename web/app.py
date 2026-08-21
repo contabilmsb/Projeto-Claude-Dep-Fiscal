@@ -81,7 +81,10 @@ from src.tributofacil.retencoes_inss.writer import gerar_excel as gerar_excel_re
 from src.tributofacil.dirbi.processor import processar as processar_dirbi
 from src.tributofacil.difal_bahia.writer import gerar_excel as gerar_excel_difal_bahia
 from src.utilidades.duimp.parser import extrair as extrair_duimp
-from src.utilidades.duimp.calculos import aplicar_rateios as aplicar_rateios_duimp
+from src.utilidades.duimp.calculos import (
+    aplicar_rateio_peso_bruto as aplicar_rateio_peso_bruto_duimp,
+    inferir_numero_adicao as inferir_numero_adicao_duimp,
+)
 from src.utilidades.duimp.writer import gerar_excel as gerar_excel_duimp
 
 app = FastAPI(title="Apuração PIS/COFINS")
@@ -845,7 +848,8 @@ async def utilidades_duimp_processar(arquivo: UploadFile = File(...)):
 
         cabecalho = resultado["cabecalho"]
         itens = resultado["itens"]
-        avisos = aplicar_rateios_duimp(cabecalho, itens)
+        avisos = aplicar_rateio_peso_bruto_duimp(cabecalho, itens)
+        avisos += inferir_numero_adicao_duimp(cabecalho, itens)
 
         excel_bytes = gerar_excel_duimp(cabecalho, itens, avisos)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
