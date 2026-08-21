@@ -357,11 +357,11 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     <span class="badge">Regime Cumulativo</span>
   </div>
   <div class="sb-nav">
-    <div class="nav-item" data-page="irpjcsll" onclick="navigate('irpjcsll')">
+    <div class="nav-item" data-page="irpjcsll" data-protected="true" onclick="navigate('irpjcsll')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
       Dashboard IRPJ e CSLL
     </div>
-    <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+    <div class="nav-item active" data-page="dashboard" data-protected="true" onclick="navigate('dashboard')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
       Dashboard PIS e COFINS
     </div>
@@ -1442,23 +1442,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   icRenderUploadGrid();
   icUpdateStatusBox();
   icCheckReady();
-  // Carrega último resultado público (sem login)
+  // Dashboards (assim como os demais menus) só carregam dados após login —
+  // sem login, updateAuthUI() já deixa o estado "Faça login" visível.
+  if (!_isLoggedIn()) return;
   try {
-    const res = await fetch('/ultimo-resultado');
+    const res = await fetch('/ultimo-resultado', { headers: { 'X-Auth-Token': _getToken() } });
     if (res.ok) {
       const data = await res.json();
       if (data && data.competencia) {
         appState.resultado = data;
         appState.sessionId = data.session_id;
-        // Usuário não logado: exibe último resultado no dashboard
-        if (!_isLoggedIn()) renderDashboard(data);
         renderConsolidacao(data.consolidacao, data.alertas);
         renderExportar(data);
         updateAuthUI();
       }
     }
   } catch(_) {}
-  // Carrega lista de períodos (público) — sempre
   carregarSessoes();
 });
 
