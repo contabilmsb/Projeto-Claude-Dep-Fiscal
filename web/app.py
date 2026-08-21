@@ -80,6 +80,9 @@ from src.tributofacil.retencoes_inss.consolidador import (
 from src.tributofacil.retencoes_inss.writer import gerar_excel as gerar_excel_retencoes_inss
 from src.tributofacil.dirbi.processor import processar as processar_dirbi
 from src.tributofacil.difal_bahia.writer import gerar_excel as gerar_excel_difal_bahia
+from src.utilidades.duimp.parser import extrair as extrair_duimp
+from src.utilidades.duimp.calculos import aplicar_rateios as aplicar_rateios_duimp
+from src.utilidades.duimp.writer import gerar_excel as gerar_excel_duimp
 
 app = FastAPI(title="Apuração PIS/COFINS")
 
@@ -823,6 +826,41 @@ async def tributofacil_dirbi_processar(arquivo: UploadFile = File(...)):
                 "X-Dirbi-Qtd-Linhas": str(info["linhas"]),
                 "X-Dirbi-Total-Pis": f"{info['total_pis']:.2f}",
                 "X-Dirbi-Total-Cofins": f"{info['total_cofins']:.2f}",
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/utilidades/duimp/processar", dependencies=[Depends(require_auth)])
+async def utilidades_duimp_processar(arquivo: UploadFile = File(...)):
+    try:
+        conteudo = await arquivo.read()
+        try:
+            resultado = extrair_duimp(conteudo)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
+        cabecalho = resultado["cabecalho"]
+        itens = resultado["itens"]
+        avisos = aplicar_rateios_duimp(cabecalho, itens)
+
+        excel_bytes = gerar_excel_duimp(cabecalho, itens, avisos)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        numero = (cabecalho.get("duimp_numero") or ts).replace("/", "-")
+        filename = f"DUIMP_{numero}.xlsx"
+
+        return StreamingResponse(
+            iter([excel_bytes]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Duimp-Numero": str(cabecalho.get("duimp_numero") or ""),
+                "X-Duimp-Qtd-Itens": str(len(itens)),
+                "X-Duimp-Valor-Aduaneiro": f"{cabecalho.get('valor_aduaneiro_brl') or 0:.2f}",
+                "X-Duimp-Qtd-Avisos": str(len(avisos)),
             },
         )
     except HTTPException:

@@ -1297,8 +1297,49 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     </h2>
     <p>Ferramentas de apoio</p>
   </div>
-  <div style="flex:1;display:flex;align-items:center;justify-content:center;">
-    <p style="color:var(--gray400);font-size:13px;">Nenhuma ferramenta cadastrada ainda.</p>
+  <div class="upload-body">
+    <div class="upload-left">
+      <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
+        <div class="section-label">Duimp — Extrato para Excel</div>
+        <p style="font-size:12px;color:var(--gray600);line-height:1.6;margin:0;">
+          Envie o Extrato da DUIMP em PDF. O sistema lê cada item importado (código do produto,
+          descrição, NCM, quantidade, lote, fabricante, fornecedor, tributos) e gera uma planilha
+          organizada, já com o <strong>peso bruto e os tributos (II, IPI, PIS, COFINS) rateados por
+          item</strong> — a DUIMP só traz esses valores no total do processo, não por mercadoria.
+        </p>
+        <div class="upload-grid" style="grid-template-columns: 1fr;">
+          <div class="file-slot" id="ut-duimp-slot-arquivo" onclick="document.getElementById('ut-duimp-file-arquivo').click()">
+            <input type="file" id="ut-duimp-file-arquivo" accept=".pdf" onchange="utDuimpOnFileSelected(this)" onclick="event.stopPropagation()">
+            <div class="slot-icon">📄</div>
+            <div class="slot-label">Extrato da DUIMP (PDF) *</div>
+            <div class="slot-name" id="ut-duimp-slot-name-arquivo">Selecionar</div>
+          </div>
+        </div>
+        <div class="error-msg" id="ut-duimp-error" style="display:none;"></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="utDuimpProcessar()" id="ut-duimp-btn" disabled style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Processar e Baixar Excel
+          </button>
+          <button class="btn btn-secondary" onclick="utDuimpLimparAnexos()" style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Limpar Anexos
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-right">
+      <h3>Como funciona</h3>
+      <p style="font-size:12px;color:var(--gray600);line-height:1.7;">
+        1. Selecione o PDF do Extrato da DUIMP (com texto selecionável, não uma digitalização).<br>
+        2. O sistema lê todos os itens e monta a aba "Itens" (uma linha por mercadoria) e a aba
+        "Resumo" (dados do processo).<br>
+        3. Nada é salvo no sistema — o resultado sai direto em um Excel para download. As colunas
+        rateadas ficam destacadas em amarelo, com a metodologia explicada na aba Resumo.
+      </p>
+      <div id="ut-duimp-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
   </div>
 </div>
 
@@ -3474,6 +3515,111 @@ async function oaDirbiProcessar() {
     errEl.style.display = 'block';
   } finally {
     btn.disabled = !oaDirbiFiles.arquivo;
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Utilidades — Duimp
+// ══════════════════════════════════════════════════════════════════
+const utDuimpFiles = {};
+
+function utDuimpOnFileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  utDuimpFiles.arquivo = file;
+  document.getElementById('ut-duimp-slot-arquivo').classList.add('uploaded');
+  document.getElementById('ut-duimp-slot-name-arquivo').textContent = file.name;
+  document.getElementById('ut-duimp-btn').disabled = !utDuimpFiles.arquivo;
+}
+
+function utDuimpLimparAnexos() {
+  delete utDuimpFiles.arquivo;
+  const input = document.getElementById('ut-duimp-file-arquivo');
+  if (input) input.value = '';
+  const slotEl = document.getElementById('ut-duimp-slot-arquivo');
+  if (slotEl) slotEl.classList.remove('uploaded');
+  const nameEl = document.getElementById('ut-duimp-slot-name-arquivo');
+  if (nameEl) nameEl.textContent = 'Selecionar';
+  document.getElementById('ut-duimp-btn').disabled = true;
+  const errEl = document.getElementById('ut-duimp-error');
+  if (errEl) errEl.style.display = 'none';
+  const resumoEl = document.getElementById('ut-duimp-resumo');
+  if (resumoEl) resumoEl.innerHTML = '';
+  showToast('✓ Anexos limpos — selecione o arquivo novamente.', 'ok', 3000);
+}
+
+async function utDuimpProcessar() {
+  const errEl = document.getElementById('ut-duimp-error');
+  errEl.style.display = 'none';
+
+  if (!utDuimpFiles.arquivo) {
+    errEl.textContent = 'Selecione o PDF do Extrato da DUIMP.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('ut-duimp-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processando…';
+
+  const fd = new FormData();
+  fd.append('arquivo', utDuimpFiles.arquivo);
+
+  try {
+    const res = await fetch('/utilidades/duimp/processar', {
+      method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() },
+    });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      throw new Error(data?.detail || 'Erro ao processar o arquivo.');
+    }
+
+    const numero = res.headers.get('X-Duimp-Numero') || '';
+    const qtd = res.headers.get('X-Duimp-Qtd-Itens') || '0';
+    const valorAduaneiro = parseFloat(res.headers.get('X-Duimp-Valor-Aduaneiro') || '0');
+    const qtdAvisos = parseInt(res.headers.get('X-Duimp-Qtd-Avisos') || '0', 10);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : 'duimp.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    document.getElementById('ut-duimp-resumo').innerHTML = `
+      <div class="card">
+        <div class="card-label">DUIMP</div>
+        <div class="card-value" style="font-size:16px;">${numero || '—'}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Itens processados</div>
+        <div class="card-value">${qtd}</div>
+      </div>
+      <div class="card accent-red">
+        <div class="card-label">Valor Aduaneiro</div>
+        <div class="card-value">${brl(valorAduaneiro)}</div>
+      </div>
+      ${qtdAvisos > 0 ? `
+        <div class="alert-box warn">
+          <div class="alert-icon">⚠️</div>
+          <div>
+            <div class="alert-title">Avisos</div>
+            <div class="alert-desc">${qtdAvisos} aviso(s) — confira a aba "Avisos" no Excel gerado.</div>
+          </div>
+        </div>` : ''}
+    `;
+    showToast('✓ Excel gerado e baixado com sucesso', 'ok', 4000);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = !utDuimpFiles.arquivo;
     btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
   }
 }
