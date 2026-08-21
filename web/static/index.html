@@ -373,9 +373,13 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       Arquivos Fiscais
     </div>
-    <div class="nav-item" data-page="tributofacil" data-protected="true" onclick="navigate('tributofacil')">
+    <div class="nav-item" data-page="difal" data-protected="true" onclick="navigate('difal')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      Tributo Fácil
+      Difal
+    </div>
+    <div class="nav-item" data-page="retencoes" data-protected="true" onclick="navigate('retencoes')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+      Retenções
     </div>
     <div class="nav-item" data-page="obrigacoesacessorias" data-protected="true" onclick="navigate('obrigacoesacessorias')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg>
@@ -1007,23 +1011,16 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 </div>
 
 <!-- ─────────────── TRIBUTO FÁCIL ─────────────── -->
-<div id="page-tributofacil" class="page">
+<div id="page-difal" class="page">
   <div class="page-header">
     <h2>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      Tributo Fácil
+      Difal
     </h2>
     <p>Apurações auxiliares — sem gravação em banco de dados</p>
   </div>
 
-  <div class="right-tabs" style="max-width:520px;">
-    <div class="rtab active" id="tf-tab-difal" onclick="tfSwitchTab('difal')">Difal Compras Fora do Estado - Uso e Consumo / Ativo Fixo</div>
-    <div class="rtab" id="tf-tab-csrf" onclick="tfSwitchTab('csrf')">Retenções CSRF</div>
-    <div class="rtab" id="tf-tab-irrf" onclick="tfSwitchTab('irrf')">Retenções IRRF</div>
-    <div class="rtab" id="tf-tab-inss" onclick="tfSwitchTab('inss')">Retenções INSS</div>
-  </div>
-
-  <div class="upload-body" id="tf-panel-difal">
+  <div class="upload-body">
     <div class="upload-left">
       <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
         <div class="section-label">DIFAL de Compras — Estado da Bahia</div>
@@ -1042,11 +1039,11 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         </p>
         <div class="form-group">
           <label>Arquivos XML (um ou mais) *</label>
-          <input type="file" id="tf-difal-files" accept=".xml" multiple onchange="tfDifalAtualizaLista()">
+          <input type="file" id="difal-files" accept=".xml" multiple onchange="difalAtualizaLista()">
         </div>
-        <div id="tf-difal-filelist" style="font-size:12px;color:var(--gray600);"></div>
-        <div class="error-msg" id="tf-difal-error" style="display:none;"></div>
-        <button class="btn btn-primary" onclick="tfDifalProcessar()" id="tf-difal-btn" style="width:auto;padding:10px 24px;align-self:flex-start;">
+        <div id="difal-filelist" style="font-size:12px;color:var(--gray600);"></div>
+        <div class="error-msg" id="difal-error" style="display:none;"></div>
+        <button class="btn btn-primary" onclick="difalProcessar()" id="difal-btn" style="width:auto;padding:10px 24px;align-self:flex-start;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Processar e Baixar Excel
         </button>
@@ -1061,11 +1058,28 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         3. Nada é salvo no sistema — o resultado sai direto em um Excel para download,
         com uma aba de avisos quando algo merece atenção (ex.: destino diferente de BA).
       </p>
-      <div id="tf-difal-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+      <div id="difal-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
+</div>
 
-  <div class="upload-body" id="tf-panel-csrf" style="display:none;">
+<!-- ─────────────── RETENÇÕES ─────────────── -->
+<div id="page-retencoes" class="page">
+  <div class="page-header">
+    <h2>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+      Retenções
+    </h2>
+    <p>Apurações auxiliares — sem gravação em banco de dados</p>
+  </div>
+
+  <div class="right-tabs" style="max-width:520px;">
+    <div class="rtab active" id="ret-tab-csrf" onclick="retSwitchTab('csrf')">Retenções CSRF</div>
+    <div class="rtab" id="ret-tab-irrf" onclick="retSwitchTab('irrf')">Retenções IRRF</div>
+    <div class="rtab" id="ret-tab-inss" onclick="retSwitchTab('inss')">Retenções INSS</div>
+  </div>
+
+  <div class="upload-body" id="ret-panel-csrf">
     <div class="upload-left">
       <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
         <div class="section-label">Retenções CSRF (COFINS/CSLL/PIS Retidos)</div>
@@ -1078,32 +1092,32 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
           o fornecedor, a natureza, a nota fiscal e o valor retido de cada linha.
         </p>
         <div class="upload-grid" style="grid-template-columns: repeat(3, 1fr);">
-          <div class="file-slot" id="tf-csrf-slot-pcc" onclick="document.getElementById('tf-csrf-file-pcc').click()">
-            <input type="file" id="tf-csrf-file-pcc" accept=".xlsx,.xls" onchange="tfCsrfOnFileSelected('pcc', this)" onclick="event.stopPropagation()">
+          <div class="file-slot" id="ret-csrf-slot-pcc" onclick="document.getElementById('ret-csrf-file-pcc').click()">
+            <input type="file" id="ret-csrf-file-pcc" accept=".xlsx,.xls" onchange="retCsrfOnFileSelected('pcc', this)" onclick="event.stopPropagation()">
             <div class="slot-icon">📄</div>
             <div class="slot-label">PCC (Retenções) *</div>
-            <div class="slot-name" id="tf-csrf-slot-name-pcc">Selecionar</div>
+            <div class="slot-name" id="ret-csrf-slot-name-pcc">Selecionar</div>
           </div>
-          <div class="file-slot" id="tf-csrf-slot-notas" onclick="document.getElementById('tf-csrf-file-notas').click()">
-            <input type="file" id="tf-csrf-file-notas" accept=".xlsx,.xls" onchange="tfCsrfOnFileSelected('notas', this)" onclick="event.stopPropagation()">
+          <div class="file-slot" id="ret-csrf-slot-notas" onclick="document.getElementById('ret-csrf-file-notas').click()">
+            <input type="file" id="ret-csrf-file-notas" accept=".xlsx,.xls" onchange="retCsrfOnFileSelected('notas', this)" onclick="event.stopPropagation()">
             <div class="slot-icon">🧾</div>
             <div class="slot-label">PCC Notas Fiscais *</div>
-            <div class="slot-name" id="tf-csrf-slot-name-notas">Selecionar</div>
+            <div class="slot-name" id="ret-csrf-slot-name-notas">Selecionar</div>
           </div>
-          <div class="file-slot" id="tf-csrf-slot-natureza" onclick="document.getElementById('tf-csrf-file-natureza').click()">
-            <input type="file" id="tf-csrf-file-natureza" accept=".xlsx,.xls" onchange="tfCsrfOnFileSelected('natureza', this)" onclick="event.stopPropagation()">
+          <div class="file-slot" id="ret-csrf-slot-natureza" onclick="document.getElementById('ret-csrf-file-natureza').click()">
+            <input type="file" id="ret-csrf-file-natureza" accept=".xlsx,.xls" onchange="retCsrfOnFileSelected('natureza', this)" onclick="event.stopPropagation()">
             <div class="slot-icon">🏷️</div>
             <div class="slot-label">Natureza *</div>
-            <div class="slot-name" id="tf-csrf-slot-name-natureza">Selecionar</div>
+            <div class="slot-name" id="ret-csrf-slot-name-natureza">Selecionar</div>
           </div>
         </div>
-        <div class="error-msg" id="tf-csrf-error" style="display:none;"></div>
+        <div class="error-msg" id="ret-csrf-error" style="display:none;"></div>
         <div style="display:flex;gap:10px;">
-          <button class="btn btn-primary" onclick="tfCsrfProcessar()" id="tf-csrf-btn" disabled style="width:auto;padding:10px 24px;">
+          <button class="btn btn-primary" onclick="retCsrfProcessar()" id="ret-csrf-btn" disabled style="width:auto;padding:10px 24px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Processar e Baixar Excel
           </button>
-          <button class="btn btn-secondary" onclick="tfCsrfLimparAnexos()" style="width:auto;padding:10px 24px;">
+          <button class="btn btn-secondary" onclick="retCsrfLimparAnexos()" style="width:auto;padding:10px 24px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             Limpar Anexos
           </button>
@@ -1119,11 +1133,11 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         3. Nada é salvo no sistema — o resultado sai direto em um Excel para download,
         com uma aba de avisos quando algum comprovante não é encontrado nas duas planilhas.
       </p>
-      <div id="tf-csrf-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+      <div id="ret-csrf-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
 
-  <div class="upload-body" id="tf-panel-irrf" style="display:none;">
+  <div class="upload-body" id="ret-panel-irrf" style="display:none;">
     <div class="upload-left">
       <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
         <div class="section-label">Retenções IRRF</div>
@@ -1136,32 +1150,32 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
           valor retido de cada linha.
         </p>
         <div class="upload-grid" style="grid-template-columns: repeat(3, 1fr);">
-          <div class="file-slot" id="tf-irrf-slot-irrf" onclick="document.getElementById('tf-irrf-file-irrf').click()">
-            <input type="file" id="tf-irrf-file-irrf" accept=".xlsx,.xls" onchange="tfIrrfOnFileSelected('irrf', this)" onclick="event.stopPropagation()">
+          <div class="file-slot" id="ret-irrf-slot-irrf" onclick="document.getElementById('ret-irrf-file-irrf').click()">
+            <input type="file" id="ret-irrf-file-irrf" accept=".xlsx,.xls" onchange="retIrrfOnFileSelected('irrf', this)" onclick="event.stopPropagation()">
             <div class="slot-icon">📄</div>
             <div class="slot-label">IRRF (Retenções) *</div>
-            <div class="slot-name" id="tf-irrf-slot-name-irrf">Selecionar</div>
+            <div class="slot-name" id="ret-irrf-slot-name-irrf">Selecionar</div>
           </div>
-          <div class="file-slot" id="tf-irrf-slot-notas" onclick="document.getElementById('tf-irrf-file-notas').click()">
-            <input type="file" id="tf-irrf-file-notas" accept=".xlsx,.xls" onchange="tfIrrfOnFileSelected('notas', this)" onclick="event.stopPropagation()">
+          <div class="file-slot" id="ret-irrf-slot-notas" onclick="document.getElementById('ret-irrf-file-notas').click()">
+            <input type="file" id="ret-irrf-file-notas" accept=".xlsx,.xls" onchange="retIrrfOnFileSelected('notas', this)" onclick="event.stopPropagation()">
             <div class="slot-icon">🧾</div>
             <div class="slot-label">IRRF Notas Fiscais *</div>
-            <div class="slot-name" id="tf-irrf-slot-name-notas">Selecionar</div>
+            <div class="slot-name" id="ret-irrf-slot-name-notas">Selecionar</div>
           </div>
-          <div class="file-slot" id="tf-irrf-slot-natureza" onclick="document.getElementById('tf-irrf-file-natureza').click()">
-            <input type="file" id="tf-irrf-file-natureza" accept=".xlsx,.xls" onchange="tfIrrfOnFileSelected('natureza', this)" onclick="event.stopPropagation()">
+          <div class="file-slot" id="ret-irrf-slot-natureza" onclick="document.getElementById('ret-irrf-file-natureza').click()">
+            <input type="file" id="ret-irrf-file-natureza" accept=".xlsx,.xls" onchange="retIrrfOnFileSelected('natureza', this)" onclick="event.stopPropagation()">
             <div class="slot-icon">🏷️</div>
             <div class="slot-label">Natureza *</div>
-            <div class="slot-name" id="tf-irrf-slot-name-natureza">Selecionar</div>
+            <div class="slot-name" id="ret-irrf-slot-name-natureza">Selecionar</div>
           </div>
         </div>
-        <div class="error-msg" id="tf-irrf-error" style="display:none;"></div>
+        <div class="error-msg" id="ret-irrf-error" style="display:none;"></div>
         <div style="display:flex;gap:10px;">
-          <button class="btn btn-primary" onclick="tfIrrfProcessar()" id="tf-irrf-btn" disabled style="width:auto;padding:10px 24px;">
+          <button class="btn btn-primary" onclick="retIrrfProcessar()" id="ret-irrf-btn" disabled style="width:auto;padding:10px 24px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Processar e Baixar Excel
           </button>
-          <button class="btn btn-secondary" onclick="tfIrrfLimparAnexos()" style="width:auto;padding:10px 24px;">
+          <button class="btn btn-secondary" onclick="retIrrfLimparAnexos()" style="width:auto;padding:10px 24px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             Limpar Anexos
           </button>
@@ -1177,11 +1191,11 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         3. Nada é salvo no sistema — o resultado sai direto em um Excel para download,
         com uma aba de avisos quando algum comprovante não é encontrado nas duas planilhas.
       </p>
-      <div id="tf-irrf-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+      <div id="ret-irrf-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
 
-  <div class="upload-body" id="tf-panel-inss" style="display:none;">
+  <div class="upload-body" id="ret-panel-inss" style="display:none;">
     <div class="upload-left">
       <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
         <div class="section-label">Retenções INSS</div>
@@ -1192,26 +1206,26 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
           única planilha consolidada com o fornecedor, a nota fiscal e o valor retido de cada linha.
         </p>
         <div class="upload-grid" style="grid-template-columns: repeat(2, 1fr);">
-          <div class="file-slot" id="tf-inss-slot-inss" onclick="document.getElementById('tf-inss-file-inss').click()">
-            <input type="file" id="tf-inss-file-inss" accept=".xlsx,.xls" onchange="tfInssOnFileSelected('inss', this)" onclick="event.stopPropagation()">
+          <div class="file-slot" id="ret-inss-slot-inss" onclick="document.getElementById('ret-inss-file-inss').click()">
+            <input type="file" id="ret-inss-file-inss" accept=".xlsx,.xls" onchange="retInssOnFileSelected('inss', this)" onclick="event.stopPropagation()">
             <div class="slot-icon">📄</div>
             <div class="slot-label">INSS (Retenções) *</div>
-            <div class="slot-name" id="tf-inss-slot-name-inss">Selecionar</div>
+            <div class="slot-name" id="ret-inss-slot-name-inss">Selecionar</div>
           </div>
-          <div class="file-slot" id="tf-inss-slot-notas" onclick="document.getElementById('tf-inss-file-notas').click()">
-            <input type="file" id="tf-inss-file-notas" accept=".xlsx,.xls" onchange="tfInssOnFileSelected('notas', this)" onclick="event.stopPropagation()">
+          <div class="file-slot" id="ret-inss-slot-notas" onclick="document.getElementById('ret-inss-file-notas').click()">
+            <input type="file" id="ret-inss-file-notas" accept=".xlsx,.xls" onchange="retInssOnFileSelected('notas', this)" onclick="event.stopPropagation()">
             <div class="slot-icon">🧾</div>
             <div class="slot-label">INSS Notas Fiscais *</div>
-            <div class="slot-name" id="tf-inss-slot-name-notas">Selecionar</div>
+            <div class="slot-name" id="ret-inss-slot-name-notas">Selecionar</div>
           </div>
         </div>
-        <div class="error-msg" id="tf-inss-error" style="display:none;"></div>
+        <div class="error-msg" id="ret-inss-error" style="display:none;"></div>
         <div style="display:flex;gap:10px;">
-          <button class="btn btn-primary" onclick="tfInssProcessar()" id="tf-inss-btn" disabled style="width:auto;padding:10px 24px;">
+          <button class="btn btn-primary" onclick="retInssProcessar()" id="ret-inss-btn" disabled style="width:auto;padding:10px 24px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Processar e Baixar Excel
           </button>
-          <button class="btn btn-secondary" onclick="tfInssLimparAnexos()" style="width:auto;padding:10px 24px;">
+          <button class="btn btn-secondary" onclick="retInssLimparAnexos()" style="width:auto;padding:10px 24px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             Limpar Anexos
           </button>
@@ -1227,7 +1241,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         3. Nada é salvo no sistema — o resultado sai direto em um Excel para download,
         com uma aba de avisos quando algum comprovante não é encontrado nas duas planilhas.
       </p>
-      <div id="tf-inss-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+      <div id="ret-inss-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
 
@@ -2959,42 +2973,40 @@ async function expIcBaixarExcel() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// Tributo Fácil — alternância de abas
+// Retenções — alternância de abas
 // ══════════════════════════════════════════════════════════════════
-function tfSwitchTab(tab) {
-  document.getElementById('tf-tab-difal').classList.toggle('active', tab === 'difal');
-  document.getElementById('tf-tab-csrf').classList.toggle('active', tab === 'csrf');
-  document.getElementById('tf-tab-irrf').classList.toggle('active', tab === 'irrf');
-  document.getElementById('tf-tab-inss').classList.toggle('active', tab === 'inss');
-  document.getElementById('tf-panel-difal').style.display = tab === 'difal' ? 'grid' : 'none';
-  document.getElementById('tf-panel-csrf').style.display = tab === 'csrf' ? 'grid' : 'none';
-  document.getElementById('tf-panel-irrf').style.display = tab === 'irrf' ? 'grid' : 'none';
-  document.getElementById('tf-panel-inss').style.display = tab === 'inss' ? 'grid' : 'none';
+function retSwitchTab(tab) {
+  document.getElementById('ret-tab-csrf').classList.toggle('active', tab === 'csrf');
+  document.getElementById('ret-tab-irrf').classList.toggle('active', tab === 'irrf');
+  document.getElementById('ret-tab-inss').classList.toggle('active', tab === 'inss');
+  document.getElementById('ret-panel-csrf').style.display = tab === 'csrf' ? 'grid' : 'none';
+  document.getElementById('ret-panel-irrf').style.display = tab === 'irrf' ? 'grid' : 'none';
+  document.getElementById('ret-panel-inss').style.display = tab === 'inss' ? 'grid' : 'none';
 }
 
 // ══════════════════════════════════════════════════════════════════
-// Tributo Fácil — DIFAL Compras Bahia
+// Difal Compras Bahia
 // ══════════════════════════════════════════════════════════════════
-function tfDifalAtualizaLista() {
-  const files = document.getElementById('tf-difal-files').files;
-  const el = document.getElementById('tf-difal-filelist');
+function difalAtualizaLista() {
+  const files = document.getElementById('difal-files').files;
+  const el = document.getElementById('difal-filelist');
   el.textContent = files.length
     ? `${files.length} arquivo(s) selecionado(s): ${[...files].map(f => f.name).join(', ')}`
     : '';
 }
 
-async function tfDifalProcessar() {
-  const errEl = document.getElementById('tf-difal-error');
+async function difalProcessar() {
+  const errEl = document.getElementById('difal-error');
   errEl.style.display = 'none';
 
-  const files = document.getElementById('tf-difal-files').files;
+  const files = document.getElementById('difal-files').files;
   if (!files.length) {
     errEl.textContent = 'Selecione ao menos um arquivo XML.';
     errEl.style.display = 'block';
     return;
   }
 
-  const btn = document.getElementById('tf-difal-btn');
+  const btn = document.getElementById('difal-btn');
   btn.disabled = true;
   btn.textContent = 'Processando…';
 
@@ -3026,7 +3038,7 @@ async function tfDifalProcessar() {
     a.remove();
     URL.revokeObjectURL(url);
 
-    document.getElementById('tf-difal-resumo').innerHTML = `
+    document.getElementById('difal-resumo').innerHTML = `
       <div class="card">
         <div class="card-label">Itens processados</div>
         <div class="card-value">${qtd}</div>
@@ -3055,9 +3067,9 @@ async function tfDifalProcessar() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// Tributo Fácil — Retenções CSRF
+// Retenções — CSRF
 // ══════════════════════════════════════════════════════════════════
-const tfCsrfFiles = {};
+const retCsrfFiles = {};
 
 function _validarArquivoCsrf(tipo, file, input) {
   const nome = _normalizarNome(file.name);
@@ -3079,52 +3091,52 @@ function _validarArquivoCsrf(tipo, file, input) {
   return true;
 }
 
-function tfCsrfOnFileSelected(tipo, input) {
+function retCsrfOnFileSelected(tipo, input) {
   const file = input.files[0];
   if (!file) return;
   if (!_validarArquivoCsrf(tipo, file, input)) return;
-  tfCsrfFiles[tipo] = file;
-  document.getElementById(`tf-csrf-slot-${tipo}`).classList.add('uploaded');
-  document.getElementById(`tf-csrf-slot-name-${tipo}`).textContent = file.name;
-  document.getElementById('tf-csrf-btn').disabled = !(tfCsrfFiles.pcc && tfCsrfFiles.notas && tfCsrfFiles.natureza);
+  retCsrfFiles[tipo] = file;
+  document.getElementById(`ret-csrf-slot-${tipo}`).classList.add('uploaded');
+  document.getElementById(`ret-csrf-slot-name-${tipo}`).textContent = file.name;
+  document.getElementById('ret-csrf-btn').disabled = !(retCsrfFiles.pcc && retCsrfFiles.notas && retCsrfFiles.natureza);
 }
 
-function tfCsrfLimparAnexos() {
+function retCsrfLimparAnexos() {
   ['pcc', 'notas', 'natureza'].forEach(tipo => {
-    delete tfCsrfFiles[tipo];
-    const input = document.getElementById(`tf-csrf-file-${tipo}`);
+    delete retCsrfFiles[tipo];
+    const input = document.getElementById(`ret-csrf-file-${tipo}`);
     if (input) input.value = '';
-    const slotEl = document.getElementById(`tf-csrf-slot-${tipo}`);
+    const slotEl = document.getElementById(`ret-csrf-slot-${tipo}`);
     if (slotEl) slotEl.classList.remove('uploaded');
-    const nameEl = document.getElementById(`tf-csrf-slot-name-${tipo}`);
+    const nameEl = document.getElementById(`ret-csrf-slot-name-${tipo}`);
     if (nameEl) nameEl.textContent = 'Selecionar';
   });
-  document.getElementById('tf-csrf-btn').disabled = true;
-  const errEl = document.getElementById('tf-csrf-error');
+  document.getElementById('ret-csrf-btn').disabled = true;
+  const errEl = document.getElementById('ret-csrf-error');
   if (errEl) errEl.style.display = 'none';
-  const resumoEl = document.getElementById('tf-csrf-resumo');
+  const resumoEl = document.getElementById('ret-csrf-resumo');
   if (resumoEl) resumoEl.innerHTML = '';
   showToast('✓ Anexos limpos — selecione os arquivos novamente.', 'ok', 3000);
 }
 
-async function tfCsrfProcessar() {
-  const errEl = document.getElementById('tf-csrf-error');
+async function retCsrfProcessar() {
+  const errEl = document.getElementById('ret-csrf-error');
   errEl.style.display = 'none';
 
-  if (!tfCsrfFiles.pcc || !tfCsrfFiles.notas || !tfCsrfFiles.natureza) {
+  if (!retCsrfFiles.pcc || !retCsrfFiles.notas || !retCsrfFiles.natureza) {
     errEl.textContent = 'Selecione os três arquivos: PCC, PCC Notas Fiscais e Natureza.';
     errEl.style.display = 'block';
     return;
   }
 
-  const btn = document.getElementById('tf-csrf-btn');
+  const btn = document.getElementById('ret-csrf-btn');
   btn.disabled = true;
   btn.textContent = 'Processando…';
 
   const fd = new FormData();
-  fd.append('pcc', tfCsrfFiles.pcc);
-  fd.append('notas_fiscais', tfCsrfFiles.notas);
-  fd.append('natureza', tfCsrfFiles.natureza);
+  fd.append('pcc', retCsrfFiles.pcc);
+  fd.append('notas_fiscais', retCsrfFiles.notas);
+  fd.append('natureza', retCsrfFiles.natureza);
 
   try {
     const res = await fetch('/tributofacil/retencoes-csrf/processar', {
@@ -3151,7 +3163,7 @@ async function tfCsrfProcessar() {
     a.remove();
     URL.revokeObjectURL(url);
 
-    document.getElementById('tf-csrf-resumo').innerHTML = `
+    document.getElementById('ret-csrf-resumo').innerHTML = `
       <div class="card">
         <div class="card-label">Linhas processadas</div>
         <div class="card-value">${qtd}</div>
@@ -3174,15 +3186,15 @@ async function tfCsrfProcessar() {
     errEl.textContent = e.message;
     errEl.style.display = 'block';
   } finally {
-    btn.disabled = !(tfCsrfFiles.pcc && tfCsrfFiles.notas && tfCsrfFiles.natureza);
+    btn.disabled = !(retCsrfFiles.pcc && retCsrfFiles.notas && retCsrfFiles.natureza);
     btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
   }
 }
 
 // ══════════════════════════════════════════════════════════════════
-// Tributo Fácil — Retenções IRRF
+// Retenções — IRRF
 // ══════════════════════════════════════════════════════════════════
-const tfIrrfFiles = {};
+const retIrrfFiles = {};
 
 function _validarArquivoIrrf(tipo, file, input) {
   const nome = _normalizarNome(file.name);
@@ -3204,52 +3216,52 @@ function _validarArquivoIrrf(tipo, file, input) {
   return true;
 }
 
-function tfIrrfOnFileSelected(tipo, input) {
+function retIrrfOnFileSelected(tipo, input) {
   const file = input.files[0];
   if (!file) return;
   if (!_validarArquivoIrrf(tipo, file, input)) return;
-  tfIrrfFiles[tipo] = file;
-  document.getElementById(`tf-irrf-slot-${tipo}`).classList.add('uploaded');
-  document.getElementById(`tf-irrf-slot-name-${tipo}`).textContent = file.name;
-  document.getElementById('tf-irrf-btn').disabled = !(tfIrrfFiles.irrf && tfIrrfFiles.notas && tfIrrfFiles.natureza);
+  retIrrfFiles[tipo] = file;
+  document.getElementById(`ret-irrf-slot-${tipo}`).classList.add('uploaded');
+  document.getElementById(`ret-irrf-slot-name-${tipo}`).textContent = file.name;
+  document.getElementById('ret-irrf-btn').disabled = !(retIrrfFiles.irrf && retIrrfFiles.notas && retIrrfFiles.natureza);
 }
 
-function tfIrrfLimparAnexos() {
+function retIrrfLimparAnexos() {
   ['irrf', 'notas', 'natureza'].forEach(tipo => {
-    delete tfIrrfFiles[tipo];
-    const input = document.getElementById(`tf-irrf-file-${tipo}`);
+    delete retIrrfFiles[tipo];
+    const input = document.getElementById(`ret-irrf-file-${tipo}`);
     if (input) input.value = '';
-    const slotEl = document.getElementById(`tf-irrf-slot-${tipo}`);
+    const slotEl = document.getElementById(`ret-irrf-slot-${tipo}`);
     if (slotEl) slotEl.classList.remove('uploaded');
-    const nameEl = document.getElementById(`tf-irrf-slot-name-${tipo}`);
+    const nameEl = document.getElementById(`ret-irrf-slot-name-${tipo}`);
     if (nameEl) nameEl.textContent = 'Selecionar';
   });
-  document.getElementById('tf-irrf-btn').disabled = true;
-  const errEl = document.getElementById('tf-irrf-error');
+  document.getElementById('ret-irrf-btn').disabled = true;
+  const errEl = document.getElementById('ret-irrf-error');
   if (errEl) errEl.style.display = 'none';
-  const resumoEl = document.getElementById('tf-irrf-resumo');
+  const resumoEl = document.getElementById('ret-irrf-resumo');
   if (resumoEl) resumoEl.innerHTML = '';
   showToast('✓ Anexos limpos — selecione os arquivos novamente.', 'ok', 3000);
 }
 
-async function tfIrrfProcessar() {
-  const errEl = document.getElementById('tf-irrf-error');
+async function retIrrfProcessar() {
+  const errEl = document.getElementById('ret-irrf-error');
   errEl.style.display = 'none';
 
-  if (!tfIrrfFiles.irrf || !tfIrrfFiles.notas || !tfIrrfFiles.natureza) {
+  if (!retIrrfFiles.irrf || !retIrrfFiles.notas || !retIrrfFiles.natureza) {
     errEl.textContent = 'Selecione os três arquivos: IRRF, IRRF Notas Fiscais e Natureza.';
     errEl.style.display = 'block';
     return;
   }
 
-  const btn = document.getElementById('tf-irrf-btn');
+  const btn = document.getElementById('ret-irrf-btn');
   btn.disabled = true;
   btn.textContent = 'Processando…';
 
   const fd = new FormData();
-  fd.append('irrf', tfIrrfFiles.irrf);
-  fd.append('notas_fiscais', tfIrrfFiles.notas);
-  fd.append('natureza', tfIrrfFiles.natureza);
+  fd.append('irrf', retIrrfFiles.irrf);
+  fd.append('notas_fiscais', retIrrfFiles.notas);
+  fd.append('natureza', retIrrfFiles.natureza);
 
   try {
     const res = await fetch('/tributofacil/retencoes-irrf/processar', {
@@ -3276,7 +3288,7 @@ async function tfIrrfProcessar() {
     a.remove();
     URL.revokeObjectURL(url);
 
-    document.getElementById('tf-irrf-resumo').innerHTML = `
+    document.getElementById('ret-irrf-resumo').innerHTML = `
       <div class="card">
         <div class="card-label">Linhas processadas</div>
         <div class="card-value">${qtd}</div>
@@ -3299,15 +3311,15 @@ async function tfIrrfProcessar() {
     errEl.textContent = e.message;
     errEl.style.display = 'block';
   } finally {
-    btn.disabled = !(tfIrrfFiles.irrf && tfIrrfFiles.notas && tfIrrfFiles.natureza);
+    btn.disabled = !(retIrrfFiles.irrf && retIrrfFiles.notas && retIrrfFiles.natureza);
     btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
   }
 }
 
 // ══════════════════════════════════════════════════════════════════
-// Tributo Fácil — Retenções INSS
+// Retenções — INSS
 // ══════════════════════════════════════════════════════════════════
-const tfInssFiles = {};
+const retInssFiles = {};
 
 function _validarArquivoInss(tipo, file, input) {
   const nome = _normalizarNome(file.name);
@@ -3324,51 +3336,51 @@ function _validarArquivoInss(tipo, file, input) {
   return true;
 }
 
-function tfInssOnFileSelected(tipo, input) {
+function retInssOnFileSelected(tipo, input) {
   const file = input.files[0];
   if (!file) return;
   if (!_validarArquivoInss(tipo, file, input)) return;
-  tfInssFiles[tipo] = file;
-  document.getElementById(`tf-inss-slot-${tipo}`).classList.add('uploaded');
-  document.getElementById(`tf-inss-slot-name-${tipo}`).textContent = file.name;
-  document.getElementById('tf-inss-btn').disabled = !(tfInssFiles.inss && tfInssFiles.notas);
+  retInssFiles[tipo] = file;
+  document.getElementById(`ret-inss-slot-${tipo}`).classList.add('uploaded');
+  document.getElementById(`ret-inss-slot-name-${tipo}`).textContent = file.name;
+  document.getElementById('ret-inss-btn').disabled = !(retInssFiles.inss && retInssFiles.notas);
 }
 
-function tfInssLimparAnexos() {
+function retInssLimparAnexos() {
   ['inss', 'notas'].forEach(tipo => {
-    delete tfInssFiles[tipo];
-    const input = document.getElementById(`tf-inss-file-${tipo}`);
+    delete retInssFiles[tipo];
+    const input = document.getElementById(`ret-inss-file-${tipo}`);
     if (input) input.value = '';
-    const slotEl = document.getElementById(`tf-inss-slot-${tipo}`);
+    const slotEl = document.getElementById(`ret-inss-slot-${tipo}`);
     if (slotEl) slotEl.classList.remove('uploaded');
-    const nameEl = document.getElementById(`tf-inss-slot-name-${tipo}`);
+    const nameEl = document.getElementById(`ret-inss-slot-name-${tipo}`);
     if (nameEl) nameEl.textContent = 'Selecionar';
   });
-  document.getElementById('tf-inss-btn').disabled = true;
-  const errEl = document.getElementById('tf-inss-error');
+  document.getElementById('ret-inss-btn').disabled = true;
+  const errEl = document.getElementById('ret-inss-error');
   if (errEl) errEl.style.display = 'none';
-  const resumoEl = document.getElementById('tf-inss-resumo');
+  const resumoEl = document.getElementById('ret-inss-resumo');
   if (resumoEl) resumoEl.innerHTML = '';
   showToast('✓ Anexos limpos — selecione os arquivos novamente.', 'ok', 3000);
 }
 
-async function tfInssProcessar() {
-  const errEl = document.getElementById('tf-inss-error');
+async function retInssProcessar() {
+  const errEl = document.getElementById('ret-inss-error');
   errEl.style.display = 'none';
 
-  if (!tfInssFiles.inss || !tfInssFiles.notas) {
+  if (!retInssFiles.inss || !retInssFiles.notas) {
     errEl.textContent = 'Selecione os dois arquivos: INSS e INSS Notas Fiscais.';
     errEl.style.display = 'block';
     return;
   }
 
-  const btn = document.getElementById('tf-inss-btn');
+  const btn = document.getElementById('ret-inss-btn');
   btn.disabled = true;
   btn.textContent = 'Processando…';
 
   const fd = new FormData();
-  fd.append('inss', tfInssFiles.inss);
-  fd.append('notas_fiscais', tfInssFiles.notas);
+  fd.append('inss', retInssFiles.inss);
+  fd.append('notas_fiscais', retInssFiles.notas);
 
   try {
     const res = await fetch('/tributofacil/retencoes-inss/processar', {
@@ -3395,7 +3407,7 @@ async function tfInssProcessar() {
     a.remove();
     URL.revokeObjectURL(url);
 
-    document.getElementById('tf-inss-resumo').innerHTML = `
+    document.getElementById('ret-inss-resumo').innerHTML = `
       <div class="card">
         <div class="card-label">Linhas processadas</div>
         <div class="card-value">${qtd}</div>
@@ -3418,7 +3430,7 @@ async function tfInssProcessar() {
     errEl.textContent = e.message;
     errEl.style.display = 'block';
   } finally {
-    btn.disabled = !(tfInssFiles.inss && tfInssFiles.notas);
+    btn.disabled = !(retInssFiles.inss && retInssFiles.notas);
     btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
   }
 }
