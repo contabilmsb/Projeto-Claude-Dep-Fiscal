@@ -39,12 +39,25 @@ def _find_col(df: pd.DataFrame, *keywords: str) -> str:
                    f"Colunas disponíveis: {list(df.columns)}")
 
 
+_EXCEL_EPOCH = pd.Timestamp("1899-12-30")
+
+
+def _parse_data_col(series: pd.Series) -> pd.Series:
+    """Converte a coluna Data (datetime já parseado pelo pandas, ou serial Excel em texto)."""
+    parsed = pd.to_datetime(series, errors="coerce")
+    ainda_vazio = parsed.isna()
+    if ainda_vazio.any():
+        serial = pd.to_numeric(series[ainda_vazio], errors="coerce")
+        parsed.loc[ainda_vazio] = _EXCEL_EPOCH + pd.to_timedelta(serial, unit="D")
+    return parsed
+
+
 # ─── Leitores específicos ─────────────────────────────────────────────────────
 
 def load_recebidas(path: Path) -> pd.DataFrame:
     """
     Recebidas Clientes: pagamentos recebidos de clientes.
-    Retorna: nf (str), recebido (float), cliente (str), data (object)
+    Retorna: nf (str), recebido (float), cliente (str), data (str dd/mm/aaaa)
     """
     df = pd.read_excel(path, dtype=str)
     df.columns = df.columns.str.strip()
@@ -56,16 +69,20 @@ def load_recebidas(path: Path) -> pd.DataFrame:
 
     df["nf"] = df[desc_col].apply(_extract_nf)
     df[cred_col] = pd.to_numeric(df[cred_col], errors="coerce").fillna(0)
+    df["data"] = _parse_data_col(df[data_col])
 
     result = (
         df[df["nf"].notna()]
-        [[desc_col, "nf", cred_col, nome_col, data_col]]
-        .rename(columns={cred_col: "recebido", nome_col: "cliente", data_col: "data"})
+        [[desc_col, "nf", cred_col, nome_col, "data"]]
+        .rename(columns={cred_col: "recebido", nome_col: "cliente"})
     )
-    return result.groupby("nf", as_index=False).agg(
+    agregado = result.groupby("nf", as_index=False).agg(
         recebido=("recebido", "sum"),
         cliente=("cliente", "first"),
+        data=("data", "max"),
     )
+    agregado["data"] = agregado["data"].dt.strftime("%d/%m/%Y")
+    return agregado
 
 
 def load_retencao(path: Path, coluna_valor: str) -> pd.DataFrame:

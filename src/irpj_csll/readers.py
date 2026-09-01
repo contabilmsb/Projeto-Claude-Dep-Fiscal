@@ -19,20 +19,7 @@ import re
 import pandas as pd
 from pathlib import Path
 
-from src.readers import _find_col, _extract_nf
-
-
-_EXCEL_EPOCH = pd.Timestamp("1899-12-30")
-
-
-def _parse_data_col(series: pd.Series) -> pd.Series:
-    """Converte a coluna Data (datetime já parseado pelo pandas, ou serial Excel em texto)."""
-    parsed = pd.to_datetime(series, errors="coerce")
-    ainda_vazio = parsed.isna()
-    if ainda_vazio.any():
-        serial = pd.to_numeric(series[ainda_vazio], errors="coerce")
-        parsed.loc[ainda_vazio] = _EXCEL_EPOCH + pd.to_timedelta(serial, unit="D")
-    return parsed
+from src.readers import _find_col, _extract_nf, _parse_data_col
 
 
 def _load_receita_financeira(path: Path, mes: int, ano: int) -> float:

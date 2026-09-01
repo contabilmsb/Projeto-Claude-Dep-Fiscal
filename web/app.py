@@ -1027,6 +1027,7 @@ class LinhaConsolidacaoNF(BaseModel):
     competencia: str | None = None
     nf: str
     cliente: str
+    data_recebimento: str | None = None
     recebido: float = 0
     cofins_retido: float = 0
     pis_retido: float = 0
@@ -1496,6 +1497,9 @@ def _build_consolidacao(dados: dict) -> list[dict]:
         base["cliente"] = ""
     base["cliente"] = base["cliente"].fillna("").astype(str)
     base["nf"] = base["nf"].fillna("").astype(str)
+    if "data" not in base.columns:
+        base["data"] = ""
+    base["data"] = base["data"].fillna("").astype(str)
 
     base["base_liquida"] = (
         base["recebido"] + base["cofins_retido"] + base["pis_retido"]
@@ -1507,6 +1511,7 @@ def _build_consolidacao(dados: dict) -> list[dict]:
         {
             "nf":            str(row["nf"]),
             "cliente":       str(row["cliente"]),
+            "data_recebimento": str(row["data"]),
             "recebido":      _safe_float(row["recebido"]),
             "cofins_retido": _safe_float(row["cofins_retido"]),
             "pis_retido":    _safe_float(row["pis_retido"]),

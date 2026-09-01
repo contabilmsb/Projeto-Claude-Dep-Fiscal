@@ -16,6 +16,7 @@ HEADER_FONT = Font(color="FFFFFF", bold=True, size=10)
 COLUNAS = [
     ("competencia", "Competência", 14, None),
     ("nf", "NF", 14, None),
+    ("data_recebimento", "Data Recebimento", 16, None),
     ("cliente", "Cliente", 40, None),
     ("recebido", "Recebido", 16, "#,##0.00"),
     ("cofins_retido", "COFINS Ret.", 14, "#,##0.00"),
