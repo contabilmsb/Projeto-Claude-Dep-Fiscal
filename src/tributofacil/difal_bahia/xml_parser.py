@@ -52,7 +52,7 @@ from pathlib import Path
 
 NS = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
 
-_RE_CONVENIO_5291 = re.compile(r"conv[eê]nio\s*(?:icms)?\s*n?[o°º]?\.?\s*52[\s/.\-]*91", re.IGNORECASE)
+_RE_CONVENIO_5291 = re.compile(r"conv(?:[eê]nio)?\.?\s*(?:icms)?\s*n?[o°º]?\.?\s*52[\s/.\-]*91", re.IGNORECASE)
 
 # Resolução do Senado Federal nº 22/1989 — alíquota interestadual de referência
 # do ICMS, por região da UF de origem.
