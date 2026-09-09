@@ -2558,7 +2558,7 @@ function icRenderMes(data) {
     ['Aplicação Financeira', c.aplicacao_financeira],
     ['Variação Cambial Ativa', c.variacao_cambial],
     ['Juros Recebidos', c.juros_recebidos],
-    ['IRRF s/ Aplicação Financeira', c.irrf_aplicacao],
+    ['IRRF Retido', (c.irrf_cliente || 0) + (c.irrf_aplicacao || 0)],
   ];
   document.getElementById('ic-cards-mes').innerHTML = cards.map(([label, v]) => `
     <div class="card">
@@ -2873,7 +2873,7 @@ async function expIcCarregarMes(sessionId) {
       { label: 'Aplicação Financeira', v: c.aplicacao_financeira },
       { label: 'Variação Cambial Ativa', v: c.variacao_cambial },
       { label: 'Juros Recebidos', v: c.juros_recebidos },
-      { label: 'IRRF s/ Aplicação Financeira', v: c.irrf_aplicacao },
+      { label: 'IRRF Retido', v: (c.irrf_cliente || 0) + (c.irrf_aplicacao || 0) },
     ]);
 
     const am = data.apuracao_mes;
