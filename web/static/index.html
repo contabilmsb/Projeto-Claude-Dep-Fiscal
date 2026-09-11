@@ -818,6 +818,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
             <th onclick="sortTable('competencia')">Competência <span class="sort-arrow" id="sort-competencia"></span></th>
             <th onclick="sortTable('nf')">NF <span class="sort-arrow" id="sort-nf"></span></th>
             <th onclick="sortTable('data_recebimento')">Data Recebimento <span class="sort-arrow" id="sort-data_recebimento"></span></th>
+            <th onclick="sortTable('data_emissao')">Data Emissão <span class="sort-arrow" id="sort-data_emissao"></span></th>
             <th onclick="sortTable('cliente')">Cliente <span class="sort-arrow" id="sort-cliente"></span></th>
             <th onclick="sortTable('recebido')">Recebido <span class="sort-arrow" id="sort-recebido"></span></th>
             <th onclick="sortTable('cofins_retido')">COFINS Ret. <span class="sort-arrow" id="sort-cofins_retido"></span></th>
@@ -1793,13 +1794,14 @@ function renderConsolidacao(data, alertas) {
 function renderTable(data) {
   const tbody = document.getElementById('cons-tbody');
   const tfoot = document.getElementById('cons-tfoot');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--gray400)">Nenhum registro.</td></tr>'; return; }
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:24px;color:var(--gray400)">Nenhum registro.</td></tr>'; return; }
 
   tbody.innerHTML = data.map(r => `
     <tr class="${appState.alertNFs.has(r.nf)?'highlight':''}">
       <td>${r.competencia || '—'}</td>
       <td><strong>${r.nf}</strong></td>
       <td>${r.data_recebimento || '—'}</td>
+      <td>${r.data_emissao || '—'}</td>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${r.cliente}</td>
       <td>${brl(r.recebido)}</td>
       <td>${r.cofins_retido ? brl(r.cofins_retido) : '—'}</td>
@@ -1812,7 +1814,7 @@ function renderTable(data) {
 
   const sum = k => data.reduce((a,r) => a+(r[k]||0), 0);
   tfoot.innerHTML = `<tr>
-    <td colspan="4"><strong>TOTAL — ${data.length} NFs</strong></td>
+    <td colspan="5"><strong>TOTAL — ${data.length} NFs</strong></td>
     <td><strong>${brl(sum('recebido'))}</strong></td>
     <td><strong>${brl(sum('cofins_retido'))}</strong></td>
     <td><strong>${brl(sum('pis_retido'))}</strong></td>
@@ -1836,7 +1838,7 @@ function sortTable(key) {
   document.getElementById(`sort-${key}`).textContent = appState.sortAsc ? '▲' : '▼';
   const sortVal = r => {
     const v = r[key] ?? '';
-    if (key === 'data_recebimento' && v) {
+    if ((key === 'data_recebimento' || key === 'data_emissao') && v) {
       const [d, m, y] = v.split('/');
       return `${y}${m}${d}`;
     }

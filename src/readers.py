@@ -39,12 +39,40 @@ def _find_col(df: pd.DataFrame, *keywords: str) -> str:
                    f"Colunas disponíveis: {list(df.columns)}")
 
 
+def _find_col_optional(df: pd.DataFrame, *keywords: str) -> str | None:
+    """Como _find_col, mas retorna None em vez de lançar erro quando não encontrada."""
+    try:
+        return _find_col(df, *keywords)
+    except KeyError:
+        return None
+
+
+def _find_col_prefer_exact(df: pd.DataFrame, keyword: str) -> str:
+    """
+    Localiza coluna cujo nome normalizado seja EXATAMENTE `keyword`; se não houver,
+    cai para a busca por substring (_find_col). Evita pegar a coluna errada quando
+    o arquivo tem várias colunas contendo a palavra-chave (ex.: "Data", "Data Valor").
+    """
+    kw = keyword.lower().strip()
+    for col in df.columns:
+        if str(col).lower().strip() == kw:
+            return col
+    return _find_col(df, keyword)
+
+
 _EXCEL_EPOCH = pd.Timestamp("1899-12-30")
 
 
 def _parse_data_col(series: pd.Series) -> pd.Series:
-    """Converte a coluna Data (datetime já parseado pelo pandas, ou serial Excel em texto)."""
-    parsed = pd.to_datetime(series, errors="coerce")
+    """
+    Converte a coluna Data (datetime já parseado pelo pandas, texto dd/mm/aaaa,
+    ou serial Excel em texto).
+
+    dayfirst=True porque os arquivos fonte usam o formato brasileiro dd/mm/aaaa
+    quando a data vem como texto (ex.: exportações de extrato bancário) — sem
+    isso, datas ambíguas (dia <= 12) são lidas como mm/dd/aaaa (formato dos EUA).
+    """
+    parsed = pd.to_datetime(series, errors="coerce", dayfirst=True)
     ainda_vazio = parsed.isna()
     if ainda_vazio.any():
         serial = pd.to_numeric(series[ainda_vazio], errors="coerce")
@@ -65,7 +93,7 @@ def load_recebidas(path: Path) -> pd.DataFrame:
     desc_col  = _find_col(df, "descri")
     cred_col  = _find_col(df, "créd")
     nome_col  = _find_col(df, "nome")
-    data_col  = _find_col(df, "data")
+    data_col  = _find_col_prefer_exact(df, "data")
 
     df["nf"] = df[desc_col].apply(_extract_nf)
     df[cred_col] = pd.to_numeric(df[cred_col], errors="coerce").fillna(0)
@@ -152,7 +180,8 @@ def load_juros(path: Path) -> pd.DataFrame:
 def load_vendas(path: Path) -> pd.DataFrame:
     """
     Notas fiscais emitidas (base accrual).
-    Retorna: nf (str), valor_venda (float), cliente (str), estado (str)
+    Retorna: nf (str), valor_venda (float), cliente (str), estado (str),
+             data_emissao (str dd/mm/aaaa) — data de lançamento da NF, quando disponível.
     """
     df = pd.read_excel(path, dtype=str)
     df.columns = df.columns.str.strip()
@@ -161,16 +190,25 @@ def load_vendas(path: Path) -> pd.DataFrame:
     val_col    = _find_col(df, "valor total")
     nome_col   = _find_col(df, "nome")
     estado_col = _find_col(df, "estado")
+    data_col   = _find_col_optional(df, "lan")  # "Data de Lançamento" / "Lancamento"
 
     df["nf"] = df[num_col].str.strip().str.zfill(9)
     df[val_col] = pd.to_numeric(df[val_col], errors="coerce").fillna(0)
+    df["data_emissao"] = _parse_data_col(df[data_col]) if data_col is not None else pd.NaT
 
-    return (
-        df[["nf", val_col, nome_col, estado_col]]
+    agregado = (
+        df[["nf", val_col, nome_col, estado_col, "data_emissao"]]
         .rename(columns={val_col: "valor_venda", nome_col: "cliente", estado_col: "estado"})
         .groupby("nf", as_index=False)
-        .agg(valor_venda=("valor_venda", "sum"), cliente=("cliente", "first"), estado=("estado", "first"))
+        .agg(
+            valor_venda=("valor_venda", "sum"),
+            cliente=("cliente", "first"),
+            estado=("estado", "first"),
+            data_emissao=("data_emissao", "min"),
+        )
     )
+    agregado["data_emissao"] = agregado["data_emissao"].dt.strftime("%d/%m/%Y")
+    return agregado
 
 
 def load_all(files: dict, estornos: list[str] | None = None) -> dict[str, pd.DataFrame]:

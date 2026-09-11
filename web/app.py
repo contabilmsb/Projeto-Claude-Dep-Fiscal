@@ -1032,6 +1032,7 @@ class LinhaConsolidacaoNF(BaseModel):
     nf: str
     cliente: str
     data_recebimento: str | None = None
+    data_emissao: str | None = None
     recebido: float = 0
     cofins_retido: float = 0
     pis_retido: float = 0
@@ -1505,6 +1506,13 @@ def _build_consolidacao(dados: dict) -> list[dict]:
         base["data"] = ""
     base["data"] = base["data"].fillna("").astype(str)
 
+    vendas_df = dados.get("vendas")
+    if vendas_df is not None and not vendas_df.empty and "data_emissao" in vendas_df.columns:
+        base = base.merge(vendas_df[["nf", "data_emissao"]], on="nf", how="left")
+    if "data_emissao" not in base.columns:
+        base["data_emissao"] = ""
+    base["data_emissao"] = base["data_emissao"].fillna("").astype(str)
+
     base["base_liquida"] = (
         base["recebido"] + base["cofins_retido"] + base["pis_retido"]
         + base["csll_retido"] + base["irrf"] - base["juros"]
@@ -1516,6 +1524,7 @@ def _build_consolidacao(dados: dict) -> list[dict]:
             "nf":            str(row["nf"]),
             "cliente":       str(row["cliente"]),
             "data_recebimento": str(row["data"]),
+            "data_emissao":  str(row["data_emissao"]),
             "recebido":      _safe_float(row["recebido"]),
             "cofins_retido": _safe_float(row["cofins_retido"]),
             "pis_retido":    _safe_float(row["pis_retido"]),

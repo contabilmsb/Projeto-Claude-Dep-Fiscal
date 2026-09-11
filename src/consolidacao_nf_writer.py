@@ -17,6 +17,7 @@ COLUNAS = [
     ("competencia", "Competência", 14, None),
     ("nf", "NF", 14, None),
     ("data_recebimento", "Data Recebimento", 16, None),
+    ("data_emissao", "Data Emissão", 16, None),
     ("cliente", "Cliente", 40, None),
     ("recebido", "Recebido", 16, "#,##0.00"),
     ("cofins_retido", "COFINS Ret.", 14, "#,##0.00"),
@@ -53,7 +54,7 @@ def gerar_excel_consolidacao_nf(linhas: list[dict], competencia_label: str) -> b
 
     total_row = row_idx
     ws.cell(row=total_row, column=1, value=f"TOTAL — {len(linhas)} NFs — {competencia_label}").font = Font(bold=True)
-    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=3)
+    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=4)
     for col_idx, (chave, _, _, formato) in enumerate(COLUNAS, start=1):
         if chave not in COLUNAS_SOMA:
             continue
