@@ -63,16 +63,19 @@ def _find_col_prefer_exact(df: pd.DataFrame, keyword: str) -> str:
 _EXCEL_EPOCH = pd.Timestamp("1899-12-30")
 
 
-def _parse_data_col(series: pd.Series) -> pd.Series:
+def _parse_data_col(series: pd.Series, dayfirst: bool = False) -> pd.Series:
     """
-    Converte a coluna Data (datetime já parseado pelo pandas, texto dd/mm/aaaa,
-    ou serial Excel em texto).
+    Converte a coluna Data (datetime já parseado pelo pandas, texto, ou serial
+    Excel em texto).
 
-    dayfirst=True porque os arquivos fonte usam o formato brasileiro dd/mm/aaaa
-    quando a data vem como texto (ex.: exportações de extrato bancário) — sem
-    isso, datas ambíguas (dia <= 12) são lidas como mm/dd/aaaa (formato dos EUA).
+    `dayfirst` deve refletir o formato de texto do arquivo de origem quando a
+    data não vier como célula de data nativa do Excel:
+      - Extratos/razão contábil (Recebidas, IRRF, COFINS/PIS/CSLL Retido) usam
+        texto no formato mm/dd/aaaa (EUA) → dayfirst=False (padrão).
+      - Arquivo de Vendas ("Data de Lançamento") usa texto no formato
+        brasileiro dd/mm/aaaa → o chamador passa dayfirst=True.
     """
-    parsed = pd.to_datetime(series, errors="coerce", dayfirst=True)
+    parsed = pd.to_datetime(series, errors="coerce", dayfirst=dayfirst)
     ainda_vazio = parsed.isna()
     if ainda_vazio.any():
         serial = pd.to_numeric(series[ainda_vazio], errors="coerce")
@@ -194,7 +197,7 @@ def load_vendas(path: Path) -> pd.DataFrame:
 
     df["nf"] = df[num_col].str.strip().str.zfill(9)
     df[val_col] = pd.to_numeric(df[val_col], errors="coerce").fillna(0)
-    df["data_emissao"] = _parse_data_col(df[data_col]) if data_col is not None else pd.NaT
+    df["data_emissao"] = _parse_data_col(df[data_col], dayfirst=True) if data_col is not None else pd.NaT
 
     agregado = (
         df[["nf", val_col, nome_col, estado_col, "data_emissao"]]
