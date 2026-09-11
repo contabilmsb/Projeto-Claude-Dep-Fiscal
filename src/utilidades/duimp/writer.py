@@ -19,6 +19,7 @@ HEADER_FILL = PatternFill("solid", fgColor="1B2A4A")
 HEADER_FONT = Font(color="FFFFFF", bold=True, size=10)
 RATEIO_FILL = PatternFill("solid", fgColor="FFF3CD")
 INFERENCIA_FILL = PatternFill("solid", fgColor="DCEEFB")
+CALCULADO_FILL = PatternFill("solid", fgColor="E2F0D9")
 
 COLUNAS_ITENS = [
     ("item", "Item", 8, None, None),
@@ -29,6 +30,8 @@ COLUNAS_ITENS = [
     ("quantidade", "Quantidade", 12, "#,##0.00", None),
     ("numero_lote", "Número do Lote", 16, None, None),
     ("data_fabricacao", "Data de Fabricação", 14, None, None),
+    ("prazo_validade", "Prazo de Validade", 16, None, None),
+    ("data_vencimento", "Data de Vencimento", 16, None, CALCULADO_FILL),
     ("fabricante_legal", "Fabricante", 30, None, None),
     ("pais_origem", "País de Origem", 20, None, None),
     ("fornecedor", "Fornecedor (Exportador)", 32, None, None),
@@ -38,13 +41,17 @@ COLUNAS_ITENS = [
     ("valor_total_venda", "Valor Total (moeda)", 16, "#,##0.00", None),
     ("peso_liquido_kg", "Peso Líquido (kg)", 16, "#,##0.00000", None),
     ("peso_bruto_rateado_kg", "Peso Bruto Rateado (kg)", 18, "#,##0.00000", RATEIO_FILL),
+    ("taxa_siscomex_rateada", "Taxa Siscomex Rateada (R$)", 20, "#,##0.00", RATEIO_FILL),
     ("cclasstrib", "Class. Tributária (cClassTrib)", 45, None, None),
     ("finalidade_importacao", "Finalidade da Importação", 22, None, None),
     ("cnpj_destino_final", "CNPJ Destino Final", 18, None, None),
     ("dispositivo_recondicionado", "Dispositivo Recondicionado", 16, None, None),
     ("numero_snvs", "Registro SNVS", 16, None, None),
 ]
-COLUNAS_ITENS_TOTAL = ["quantidade", "peso_liquido_kg", "peso_bruto_rateado_kg", "valor_total_venda"]
+COLUNAS_ITENS_TOTAL = [
+    "quantidade", "peso_liquido_kg", "peso_bruto_rateado_kg", "valor_total_venda",
+    "taxa_siscomex_rateada",
+]
 
 COLUNAS_TRIBUTACAO_ITEM = [
     ("item", "Item", 8),
@@ -106,15 +113,16 @@ def _gerar_aba_itens(ws, itens: list[dict]) -> None:
 def _gerar_aba_detalhes(ws, cabecalho: dict, itens: list[dict]) -> None:
     ws.cell(row=1, column=1, value="Tributos por Adição (como declarado na DI)").font = Font(bold=True, size=12)
 
-    titulos_adicao = ["Adição", "NCM", "II (R$)", "IPI (R$)", "Base de Cálculo PIS/COFINS (R$)", "PIS (R$)", "COFINS (R$)"]
-    larguras_adicao = [12, 16, 14, 14, 26, 14, 14]
+    titulos_adicao = ["Adição", "NCM", "II (R$)", "IPI (R$)", "Taxa Siscomex (R$)",
+                       "Base de Cálculo PIS/COFINS (R$)", "PIS (R$)", "COFINS (R$)"]
+    larguras_adicao = [12, 16, 14, 14, 16, 26, 14, 14]
     row = 3
     _cabecalho_tabela(ws, row, titulos_adicao, larguras_adicao)
     row += 1
 
     adicoes = cabecalho.get("adicoes") or []
     for a in adicoes:
-        valores = [a["numero"], a["ncm"], a.get("ii_valor"), a.get("ipi_valor"),
+        valores = [a["numero"], a["ncm"], a.get("ii_valor"), a.get("ipi_valor"), a.get("taxa_siscomex"),
                    a.get("base_pis_cofins"), a.get("pis_valor"), a.get("cofins_valor")]
         for col_idx, valor in enumerate(valores, start=1):
             cell = ws.cell(row=row, column=col_idx, value=valor)
@@ -124,8 +132,8 @@ def _gerar_aba_detalhes(ws, cabecalho: dict, itens: list[dict]) -> None:
 
     total_row = row
     ws.cell(row=total_row, column=1, value="TOTAL").font = Font(bold=True)
-    for col_idx, chave in [(3, "ii_valor"), (4, "ipi_valor"), (5, "base_pis_cofins"),
-                            (6, "pis_valor"), (7, "cofins_valor")]:
+    for col_idx, chave in [(3, "ii_valor"), (4, "ipi_valor"), (5, "taxa_siscomex"),
+                            (6, "base_pis_cofins"), (7, "pis_valor"), (8, "cofins_valor")]:
         total = sum(a.get(chave) or 0 for a in adicoes)
         c = ws.cell(row=total_row, column=col_idx, value=round(total, 2))
         c.font = Font(bold=True)
@@ -196,18 +204,21 @@ def _gerar_aba_resumo(ws, cabecalho: dict, qtd_itens: int) -> None:
     nota_row = len(linhas) + 2
     ws.cell(row=nota_row, column=1, value="Metodologia").font = Font(bold=True, size=12)
     nota = (
-        "Tributos (II, IPI, PIS, COFINS) e encargos (frete, seguro, taxa Siscomex, despesas "
-        "aduaneiras) NÃO são rateados por item — estão na aba \"Detalhes\" exatamente como "
-        "declarados na DI (por adição/processo, não por mercadoria). O único valor rateado por "
-        "item é o PESO BRUTO (destacado em amarelo na aba Itens), proporcionalmente à participação "
-        "de cada item no peso líquido total — é uma estimativa, já que a DUIMP só informa o peso "
-        "bruto total do processo. A coluna \"Número da Adição\" (destacada em azul na aba Itens) é "
-        "uma inferência por agrupamento de fabricante, não um dado declarado por item — confira a "
-        "aba Avisos."
+        "Tributos (II, IPI, PIS, COFINS) e encargos (frete, seguro, despesas aduaneiras) NÃO são "
+        "rateados por item — estão na aba \"Detalhes\" exatamente como declarados na DI (por "
+        "adição/processo, não por mercadoria). Dois valores SÃO rateados por item, destacados em "
+        "amarelo na aba Itens: o PESO BRUTO, proporcionalmente à participação de cada item no peso "
+        "líquido total, e a TAXA SISCOMEX, proporcionalmente à participação de cada item no valor "
+        "comercial dentro da sua adição — em ambos os casos por não haver o valor exato por item na "
+        "DUIMP. A coluna \"Número da Adição\" (destacada em azul) é uma inferência por agrupamento "
+        "de fabricante, não um dado declarado por item. A \"Data de Vencimento\" (destacada em "
+        "verde) é calculada (Data de Fabricação + Prazo de Validade), não um campo da DUIMP — fica "
+        "em branco quando o prazo é indeterminado. Confira a aba Avisos para os detalhes de cada "
+        "estimativa/inferência."
     )
     ws.cell(row=nota_row + 1, column=1, value=nota).alignment = Alignment(wrap_text=True)
     ws.merge_cells(start_row=nota_row + 1, start_column=1, end_row=nota_row + 1, end_column=2)
-    ws.row_dimensions[nota_row + 1].height = 75
+    ws.row_dimensions[nota_row + 1].height = 100
 
 
 def gerar_excel(cabecalho: dict, itens: list[dict], avisos: list[str]) -> bytes:

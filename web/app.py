@@ -84,6 +84,8 @@ from src.utilidades.duimp.parser import extrair as extrair_duimp
 from src.utilidades.duimp.calculos import (
     aplicar_rateio_peso_bruto as aplicar_rateio_peso_bruto_duimp,
     inferir_numero_adicao as inferir_numero_adicao_duimp,
+    aplicar_rateio_siscomex as aplicar_rateio_siscomex_duimp,
+    calcular_data_vencimento as calcular_data_vencimento_duimp,
 )
 from src.utilidades.duimp.writer import gerar_excel as gerar_excel_duimp
 
@@ -850,6 +852,8 @@ async def utilidades_duimp_processar(arquivo: UploadFile = File(...)):
         itens = resultado["itens"]
         avisos = aplicar_rateio_peso_bruto_duimp(cabecalho, itens)
         avisos += inferir_numero_adicao_duimp(cabecalho, itens)
+        avisos += aplicar_rateio_siscomex_duimp(cabecalho, itens)
+        avisos += calcular_data_vencimento_duimp(itens)
 
         excel_bytes = gerar_excel_duimp(cabecalho, itens, avisos)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")

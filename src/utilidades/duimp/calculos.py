@@ -14,10 +14,26 @@ Cálculos derivados a partir dos dados extraídos da DUIMP:
     à ordem das adições declaradas. É uma inferência, não um dado declarado
     por item — por isso sempre gera aviso.
 
-Tributos e encargos (II, IPI, PIS, COFINS, frete, seguro, taxa Siscomex,
-despesas aduaneiras) NÃO são rateados por item: são apresentados como estão
-na DI, por adição/processo, na aba "Detalhes".
+  - Taxa Siscomex: alguns formatos de extrato declaram o valor já por
+    adição; outros só trazem o total do processo. Quando falta o valor por
+    adição, é rateado entre as adições pela participação de cada uma na
+    Base de Cálculo PIS/COFINS. Depois, dentro de cada adição, o valor é
+    rateado por item pela participação de cada um no valor comercial total
+    da adição (mesma lógica de rateio de custo de processo por valor).
+
+  - Data de Vencimento: não é um campo da DUIMP — é calculada a partir da
+    Data de Fabricação + Prazo de Validade de cada item (quando o prazo é
+    determinado; "INDETERMINADA/INDETERMINADO" não gera vencimento).
+
+Tributos e encargos (II, IPI, PIS, COFINS, frete, seguro, despesas
+aduaneiras) NÃO são rateados por item: são apresentados como estão na DI,
+por adição/processo, na aba "Detalhes". A Taxa Siscomex é a exceção, a
+pedido do usuário, por ser útil no custeio de cada produto.
 """
+
+import re
+
+import pandas as pd
 
 
 def aplicar_rateio_peso_bruto(cabecalho: dict, itens: list[dict]) -> list[str]:
@@ -75,4 +91,121 @@ def inferir_numero_adicao(cabecalho: dict, itens: list[dict]) -> list[str]:
         "e associados às adições na mesma ordem em que aparecem no processo — confira contra a DI "
         "antes de usar para fins fiscais."
     )
+    return avisos
+
+
+def aplicar_rateio_siscomex(cabecalho: dict, itens: list[dict]) -> list[str]:
+    """
+    Adiciona a cada item (in place) a Taxa Siscomex rateada. Depende de
+    `inferir_numero_adicao` já ter sido chamada. Retorna avisos.
+    """
+    avisos = []
+    adicoes = cabecalho.get("adicoes") or []
+    taxa_siscomex_total = cabecalho.get("taxa_siscomex")
+
+    for it in itens:
+        it["taxa_siscomex_rateada"] = None
+
+    if not adicoes or taxa_siscomex_total is None:
+        avisos.append(
+            "Não foi possível localizar a Taxa Siscomex do processo — a coluna \"Taxa Siscomex "
+            "Rateada\" ficou em branco."
+        )
+        return avisos
+
+    # Garante que cada adição tenha seu próprio valor de Taxa Siscomex —
+    # quando a DI só traz o total do processo (não por adição), rateia pela
+    # participação de cada adição na Base de Cálculo PIS/COFINS.
+    if any(a.get("taxa_siscomex") is None for a in adicoes):
+        total_base = sum(a.get("base_pis_cofins") or 0 for a in adicoes)
+        if total_base:
+            for a in adicoes:
+                if a.get("taxa_siscomex") is None:
+                    participacao = (a.get("base_pis_cofins") or 0) / total_base
+                    a["taxa_siscomex"] = round(participacao * taxa_siscomex_total, 2)
+            avisos.append(
+                "A DI não declara a Taxa Siscomex por adição — o valor total do processo foi "
+                "rateado entre as adições proporcionalmente à Base de Cálculo PIS/COFINS de cada uma."
+            )
+
+    mapa_adicao = {a["numero"]: a for a in adicoes}
+
+    por_adicao: dict = {}
+    for it in itens:
+        por_adicao.setdefault(it.get("numero_adicao"), []).append(it)
+
+    itens_sem_adicao = []
+    for numero_adicao, grupo in por_adicao.items():
+        adicao = mapa_adicao.get(numero_adicao)
+        if numero_adicao is None or adicao is None or adicao.get("taxa_siscomex") is None:
+            itens_sem_adicao.extend(grupo)
+            continue
+        total_valor_grupo = sum(it.get("valor_total_venda") or 0 for it in grupo)
+        if not total_valor_grupo:
+            continue
+        for it in grupo:
+            participacao = (it.get("valor_total_venda") or 0) / total_valor_grupo
+            it["taxa_siscomex_rateada"] = round(participacao * adicao["taxa_siscomex"], 2)
+
+    if itens_sem_adicao:
+        total_valor_processo = sum(it.get("valor_total_venda") or 0 for it in itens)
+        if total_valor_processo:
+            for it in itens_sem_adicao:
+                participacao = (it.get("valor_total_venda") or 0) / total_valor_processo
+                it["taxa_siscomex_rateada"] = round(participacao * taxa_siscomex_total, 2)
+        avisos.append(
+            "Não foi possível identificar a adição de um ou mais itens — a Taxa Siscomex desses "
+            "itens foi rateada pelo valor comercial sobre o total do processo, não pela adição "
+            "específica a que pertencem."
+        )
+
+    return avisos
+
+
+_RE_PRAZO = re.compile(r"(\d+)\s*(mes|mês|meses|ano|anos)", re.IGNORECASE)
+
+
+def _parse_data_br(texto):
+    if not texto:
+        return None
+    try:
+        return pd.to_datetime(texto, format="%d/%m/%Y")
+    except (ValueError, TypeError):
+        return None
+
+
+def calcular_data_vencimento(itens: list[dict]) -> list[str]:
+    """
+    Adiciona a cada item (in place) a Data de Vencimento, calculada a partir
+    da Data de Fabricação + Prazo de Validade. Não é um campo da DUIMP — é
+    uma data derivada; quando o prazo é "INDETERMINADA/INDETERMINADO", não
+    há vencimento a calcular (fica em branco, sem gerar aviso). Retorna
+    avisos apenas quando o prazo é determinado mas não foi possível
+    calcular (formato não reconhecido, ou falta a data de fabricação).
+    """
+    avisos = []
+    algum_nao_calculavel = False
+
+    for it in itens:
+        it["data_vencimento"] = None
+        prazo = (it.get("prazo_validade") or "").strip()
+        if not prazo or "indetermin" in prazo.lower():
+            continue
+
+        m = _RE_PRAZO.search(prazo)
+        data_fab = _parse_data_br(it.get("data_fabricacao"))
+        if not m or data_fab is None:
+            algum_nao_calculavel = True
+            continue
+
+        qtd = int(m.group(1))
+        unidade = m.group(2).lower()
+        offset = pd.DateOffset(years=qtd) if unidade.startswith("ano") else pd.DateOffset(months=qtd)
+        it["data_vencimento"] = (data_fab + offset).strftime("%d/%m/%Y")
+
+    if algum_nao_calculavel:
+        avisos.append(
+            "Não foi possível calcular a Data de Vencimento de um ou mais itens (prazo de validade "
+            "com formato não reconhecido, ou sem data de fabricação) — confira manualmente esses itens."
+        )
     return avisos

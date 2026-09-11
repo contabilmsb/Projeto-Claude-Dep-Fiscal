@@ -104,6 +104,7 @@ def _parse_item(numero_item: int, texto: str) -> dict:
     d["cnpj_destino_final"] = _find_value(texto, "CNPJ / CPF Destino final")
     d["finalidade_importacao"] = _find_value(texto, "Finalidade da importação - Anvisa")
     d["dispositivo_recondicionado"] = _find_value(texto, "Dispositivo médico recondicionado")
+    d["prazo_validade"] = _find_value(texto, "Prazo de validade")
 
     v = _find_value(texto, "País de origem: Número de Identificação (CPF/CNPJ/TIN):")
     if v:
@@ -264,6 +265,7 @@ def _parse_cabecalho_v2(texto: str) -> dict:
         r"II\s*:\s*[\d,]+%\s*RED:\s*[\d,]+%\s*BRL\s*([\d.,]+)\s*\n"
         r"IPI\s*:\s*[\d,]+%\s*RED:\s*[\d,]+%\s*BRL\s*([\d.,]+)\s*\n"
         r"(?:.*\n)*?"
+        r"Valor Taxa Siscomex\s*:\s*BRL\s*([\d.,]+)\s*\n"
         r"Base Calculo PIS/COFINS\s*:\s*BRL\s*([\d.,]+)\s*\n"
         r"PIS\s*:\s*[\d,]+%\s*RED:\s*[\d,]+%\s*BRL\s*([\d.,]+)\s*\n"
         r"COFINS\s*:\s*[\d,]+%\s*RED:\s*[\d,]+%\s*BRL\s*([\d.,]+)",
@@ -272,8 +274,9 @@ def _parse_cabecalho_v2(texto: str) -> dict:
         adicoes.append({
             "numero": m.group(1), "ncm": m.group(2),
             "ii_valor": _to_float(m.group(3)), "ipi_valor": _to_float(m.group(4)),
-            "base_pis_cofins": _to_float(m.group(5)),
-            "pis_valor": _to_float(m.group(6)), "cofins_valor": _to_float(m.group(7)),
+            "taxa_siscomex": _to_float(m.group(5)),
+            "base_pis_cofins": _to_float(m.group(6)),
+            "pis_valor": _to_float(m.group(7)), "cofins_valor": _to_float(m.group(8)),
         })
     h["adicoes"] = adicoes
     return h
