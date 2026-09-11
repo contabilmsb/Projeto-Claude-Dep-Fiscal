@@ -176,10 +176,31 @@ def _competencia_to_month_year(competencia: str) -> tuple[int, int]:
 
 
 def _totais_fingerprint(resultado: dict) -> dict:
-    """Extrai os campos numéricos chave para comparação de duplicidade."""
+    """
+    Extrai os campos-chave para comparação de duplicidade: totais numéricos
+    + um hash das linhas da consolidação (NF, datas, valores por NF).
+
+    O hash de linhas é necessário porque dois processamentos podem ter os
+    mesmos totais agregados mas linhas diferentes (ex.: uma correção na
+    leitura de datas que não muda nenhum valor somado) — sem ele, o
+    reprocessamento seria descartado como "idêntico" e os dados corrigidos
+    nunca seriam salvos.
+    """
+    import hashlib
     t = resultado.get("totais", {})
     c = resultado.get("cofins", {})
     p = resultado.get("pis", {})
+    consolidacao = resultado.get("consolidacao", [])
+    linhas_chave = sorted(
+        (
+            r.get("nf"),
+            r.get("data_recebimento"),
+            r.get("data_emissao"),
+            round(float(r.get("recebido") or 0), 2),
+        )
+        for r in consolidacao
+    )
+    linhas_hash = hashlib.md5(repr(linhas_chave).encode("utf-8")).hexdigest()
     return {
         "total_recebido":   round(float(t.get("total_recebido",  0)), 2),
         "base_liquida":     round(float(t.get("base_liquida",    0)), 2),
@@ -192,7 +213,8 @@ def _totais_fingerprint(resultado: dict) -> dict:
         "csll_retida":      round(float(t.get("csll_retida",     0)), 2),
         "irrf_retido":      round(float(t.get("irrf_retido",     0)), 2),
         "juros":            round(float(t.get("juros",           0)), 2),
-        "n_nfs":            len(resultado.get("consolidacao", [])),
+        "n_nfs":            len(consolidacao),
+        "linhas_hash":      linhas_hash,
     }
 
 
