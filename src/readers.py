@@ -184,7 +184,8 @@ def load_vendas(path: Path) -> pd.DataFrame:
     """
     Notas fiscais emitidas (base accrual).
     Retorna: nf (str), valor_venda (float), cliente (str), estado (str),
-             data_emissao (str dd/mm/aaaa) — data de lançamento da NF, quando disponível.
+             data_emissao (str dd/mm/aaaa) — data de lançamento da NF, quando disponível,
+             conta (str), cnpj_cpf (str) — quando disponíveis no arquivo.
     """
     df = pd.read_excel(path, dtype=str)
     df.columns = df.columns.str.strip()
@@ -193,14 +194,18 @@ def load_vendas(path: Path) -> pd.DataFrame:
     val_col    = _find_col(df, "valor total")
     nome_col   = _find_col(df, "nome")
     estado_col = _find_col(df, "estado")
-    data_col   = _find_col_optional(df, "lan")  # "Data de Lançamento" / "Lancamento"
+    data_col   = _find_col_optional(df, "lan")   # "Data de Lançamento" / "Lancamento"
+    conta_col  = _find_col_optional(df, "conta")
+    cnpj_col   = _find_col_optional(df, "cnpj")  # "CNPJ/CPF" / "CNPJ / CPF"
 
     df["nf"] = df[num_col].str.strip().str.zfill(9)
     df[val_col] = pd.to_numeric(df[val_col], errors="coerce").fillna(0)
     df["data_emissao"] = _parse_data_col(df[data_col], dayfirst=True) if data_col is not None else pd.NaT
+    df["conta"] = df[conta_col].fillna("").astype(str).str.strip() if conta_col is not None else ""
+    df["cnpj_cpf"] = df[cnpj_col].fillna("").astype(str).str.strip() if cnpj_col is not None else ""
 
     agregado = (
-        df[["nf", val_col, nome_col, estado_col, "data_emissao"]]
+        df[["nf", val_col, nome_col, estado_col, "data_emissao", "conta", "cnpj_cpf"]]
         .rename(columns={val_col: "valor_venda", nome_col: "cliente", estado_col: "estado"})
         .groupby("nf", as_index=False)
         .agg(
@@ -208,6 +213,8 @@ def load_vendas(path: Path) -> pd.DataFrame:
             cliente=("cliente", "first"),
             estado=("estado", "first"),
             data_emissao=("data_emissao", "min"),
+            conta=("conta", "first"),
+            cnpj_cpf=("cnpj_cpf", "first"),
         )
     )
     agregado["data_emissao"] = agregado["data_emissao"].dt.strftime("%d/%m/%Y")

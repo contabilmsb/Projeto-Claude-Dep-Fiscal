@@ -19,6 +19,8 @@ COLUNAS = [
     ("data_recebimento", "Data Recebimento", 16, None),
     ("data_emissao", "Data Emissão", 16, None),
     ("cliente", "Cliente", 40, None),
+    ("conta", "Conta", 16, None),
+    ("cnpj_cpf", "CNPJ/CPF", 18, None),
     ("recebido", "Recebido", 16, "#,##0.00"),
     ("cofins_retido", "COFINS Ret.", 14, "#,##0.00"),
     ("pis_retido", "PIS Ret.", 14, "#,##0.00"),
@@ -54,7 +56,7 @@ def gerar_excel_consolidacao_nf(linhas: list[dict], competencia_label: str) -> b
 
     total_row = row_idx
     ws.cell(row=total_row, column=1, value=f"TOTAL — {len(linhas)} NFs — {competencia_label}").font = Font(bold=True)
-    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=4)
+    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=7)
     for col_idx, (chave, _, _, formato) in enumerate(COLUNAS, start=1):
         if chave not in COLUNAS_SOMA:
             continue

@@ -1055,6 +1055,8 @@ class LinhaConsolidacaoNF(BaseModel):
     cliente: str
     data_recebimento: str | None = None
     data_emissao: str | None = None
+    conta: str | None = None
+    cnpj_cpf: str | None = None
     recebido: float = 0
     cofins_retido: float = 0
     pis_retido: float = 0
@@ -1529,11 +1531,15 @@ def _build_consolidacao(dados: dict) -> list[dict]:
     base["data"] = base["data"].fillna("").astype(str)
 
     vendas_df = dados.get("vendas")
-    if vendas_df is not None and not vendas_df.empty and "data_emissao" in vendas_df.columns:
-        base = base.merge(vendas_df[["nf", "data_emissao"]], on="nf", how="left")
-    if "data_emissao" not in base.columns:
-        base["data_emissao"] = ""
-    base["data_emissao"] = base["data_emissao"].fillna("").astype(str)
+    vendas_cols = ["data_emissao", "conta", "cnpj_cpf"]
+    if vendas_df is not None and not vendas_df.empty:
+        cols_disponiveis = [c for c in vendas_cols if c in vendas_df.columns]
+        if cols_disponiveis:
+            base = base.merge(vendas_df[["nf", *cols_disponiveis]], on="nf", how="left")
+    for col in vendas_cols:
+        if col not in base.columns:
+            base[col] = ""
+        base[col] = base[col].fillna("").astype(str)
 
     base["base_liquida"] = (
         base["recebido"] + base["cofins_retido"] + base["pis_retido"]
@@ -1547,6 +1553,8 @@ def _build_consolidacao(dados: dict) -> list[dict]:
             "cliente":       str(row["cliente"]),
             "data_recebimento": str(row["data"]),
             "data_emissao":  str(row["data_emissao"]),
+            "conta":         str(row["conta"]),
+            "cnpj_cpf":      str(row["cnpj_cpf"]),
             "recebido":      _safe_float(row["recebido"]),
             "cofins_retido": _safe_float(row["cofins_retido"]),
             "pis_retido":    _safe_float(row["pis_retido"]),
