@@ -32,12 +32,6 @@ COLS_PERCENTUAL = {17, 20, 21, 23}
 
 def _observacoes(item: ItemAntecipacao, res: ResultadoAntecipacaoItem) -> str:
     obs = []
-    if res.mva_original == 0:
-        obs.append(
-            "MVA original de 0% (nenhuma margem aplicada) — o percentual de MVA Ajustada exibido decorre "
-            "exclusivamente do ajuste pela diferença entre a alíquota interestadual e a interna (§14 do "
-            "art. 289 do RICMS-BA), não de uma margem de lucro presumida."
-        )
     if not res.ajuste_aplicado:
         obs.append(
             "Alíquota interna não superior à interestadual — usada a MVA original sem ajuste (§15 do "
