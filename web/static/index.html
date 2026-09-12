@@ -1024,7 +1024,12 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     <p>Apurações auxiliares — sem gravação em banco de dados</p>
   </div>
 
-  <div class="upload-body">
+  <div class="right-tabs" style="max-width:520px;">
+    <div class="rtab active" id="difal-tab-bahia" onclick="difalSwitchTab('bahia')">Difal Bahia</div>
+    <div class="rtab" id="difal-tab-antecipacao" onclick="difalSwitchTab('antecipacao')">Antecipação de ICMS</div>
+  </div>
+
+  <div class="upload-body" id="difal-panel-bahia">
     <div class="upload-left">
       <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
         <div class="section-label">DIFAL de Compras — Estado da Bahia</div>
@@ -1063,6 +1068,52 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         com uma aba de avisos quando algo merece atenção (ex.: destino diferente de BA).
       </p>
       <div id="difal-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+
+  <div class="upload-body" id="difal-panel-antecipacao" style="display:none;">
+    <div class="upload-left">
+      <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
+        <div class="section-label">Antecipação Parcial de ICMS (sem substituição tributária)</div>
+        <p style="font-size:12px;color:var(--gray600);line-height:1.6;margin:0;">
+          Envie os arquivos XML das NF-e de compra interestadual de mercadorias destinadas à revenda.
+          Calcula a antecipação parcial do ICMS (Art. 12-A da Lei nº 7.014/1996; art. 289, §14 e §17,
+          do RICMS-BA), usando a MVA genérica da categoria selecionada, ajustada pela diferença entre a
+          alíquota interestadual e a alíquota interna informada. Este valor é recuperável como crédito
+          pelo contribuinte do regime de conta-corrente fiscal (Art. 309, II do RICMS-BA). Só cobre a
+          antecipação <strong>sem</strong> substituição tributária — mercadorias do Anexo 1 (com MVA
+          específico por produto, que encerra a fase de tributação) não são tratadas aqui.
+        </p>
+        <div class="form-group">
+          <label>Arquivos XML (um ou mais) *</label>
+          <input type="file" id="antecipacao-files" accept=".xml" multiple onchange="antecipacaoAtualizaLista()">
+        </div>
+        <div id="antecipacao-filelist" style="font-size:12px;color:var(--gray600);"></div>
+        <div class="form-group">
+          <label>Categoria da mercadoria (MVA) *</label>
+          <select id="antecipacao-categoria"></select>
+        </div>
+        <div class="form-group">
+          <label>Alíquota interna da Bahia (%) *</label>
+          <input type="number" id="antecipacao-aliquota-interna" value="20.5" step="0.01" min="0" max="99">
+        </div>
+        <div class="error-msg" id="antecipacao-error" style="display:none;"></div>
+        <button class="btn btn-primary" onclick="antecipacaoIcmsProcessar()" id="antecipacao-btn" style="width:auto;padding:10px 24px;align-self:flex-start;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Processar e Baixar Excel
+        </button>
+      </div>
+    </div>
+
+    <div class="upload-right">
+      <h3>Como funciona</h3>
+      <p style="font-size:12px;color:var(--gray600);line-height:1.7;">
+        1. Selecione um ou mais arquivos XML de NF-e de compra interestadual para revenda.<br>
+        2. Escolha a categoria da mercadoria (define a MVA genérica) e confirme a alíquota interna.<br>
+        3. Nada é salvo no sistema — o resultado sai direto em um Excel para download,
+        com uma aba de avisos quando algo merece atenção (ex.: destino diferente de BA, CFOP de uso/consumo).
+      </p>
+      <div id="antecipacao-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
 </div>
@@ -3001,6 +3052,17 @@ function retSwitchTab(tab) {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// Difal — alternância de abas
+// ══════════════════════════════════════════════════════════════════
+function difalSwitchTab(tab) {
+  document.getElementById('difal-tab-bahia').classList.toggle('active', tab === 'bahia');
+  document.getElementById('difal-tab-antecipacao').classList.toggle('active', tab === 'antecipacao');
+  document.getElementById('difal-panel-bahia').style.display = tab === 'bahia' ? 'grid' : 'none';
+  document.getElementById('difal-panel-antecipacao').style.display = tab === 'antecipacao' ? 'grid' : 'none';
+  if (tab === 'antecipacao') antecipacaoCarregaCategorias();
+}
+
+// ══════════════════════════════════════════════════════════════════
 // Difal Compras Bahia
 // ══════════════════════════════════════════════════════════════════
 function difalAtualizaLista() {
@@ -3061,6 +3123,114 @@ async function difalProcessar() {
       </div>
       <div class="card accent-red">
         <div class="card-label">Total DIFAL</div>
+        <div class="card-value">${brl(total)}</div>
+      </div>
+      ${qtdAvisos > 0 ? `
+        <div class="alert-box warn">
+          <div class="alert-icon">⚠️</div>
+          <div>
+            <div class="alert-title">Avisos</div>
+            <div class="alert-desc">${qtdAvisos} aviso(s) — confira a aba "Avisos" no Excel gerado.</div>
+          </div>
+        </div>` : ''}
+    `;
+    showToast('✓ Excel gerado e baixado com sucesso', 'ok', 4000);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Antecipação Parcial de ICMS
+// ══════════════════════════════════════════════════════════════════
+let _antecipacaoCategoriasCarregadas = false;
+
+async function antecipacaoCarregaCategorias() {
+  if (_antecipacaoCategoriasCarregadas) return;
+  const sel = document.getElementById('antecipacao-categoria');
+  try {
+    const res = await fetch('/tributofacil/antecipacao-icms/categorias');
+    const categorias = await res.json();
+    sel.innerHTML = categorias.map(c =>
+      `<option value="${c.chave}">${c.label} (MVA ${(c.mva * 100).toFixed(0)}%)</option>`
+    ).join('');
+    _antecipacaoCategoriasCarregadas = true;
+  } catch (e) {
+    sel.innerHTML = '<option value="">Erro ao carregar categorias</option>';
+  }
+}
+
+function antecipacaoAtualizaLista() {
+  const files = document.getElementById('antecipacao-files').files;
+  const el = document.getElementById('antecipacao-filelist');
+  el.textContent = files.length
+    ? `${files.length} arquivo(s) selecionado(s): ${[...files].map(f => f.name).join(', ')}`
+    : '';
+}
+
+async function antecipacaoIcmsProcessar() {
+  const errEl = document.getElementById('antecipacao-error');
+  errEl.style.display = 'none';
+
+  const files = document.getElementById('antecipacao-files').files;
+  if (!files.length) {
+    errEl.textContent = 'Selecione ao menos um arquivo XML.';
+    errEl.style.display = 'block';
+    return;
+  }
+  const categoria = document.getElementById('antecipacao-categoria').value;
+  const aliquotaInterna = parseFloat(document.getElementById('antecipacao-aliquota-interna').value);
+  if (!categoria || isNaN(aliquotaInterna)) {
+    errEl.textContent = 'Selecione a categoria e informe a alíquota interna.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('antecipacao-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processando…';
+
+  const fd = new FormData();
+  [...files].forEach(f => fd.append('arquivos', f));
+  fd.append('categoria', categoria);
+  fd.append('aliquota_interna', (aliquotaInterna / 100).toString());
+
+  try {
+    const res = await fetch('/tributofacil/antecipacao-icms/processar', {
+      method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() },
+    });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      throw new Error(data?.detail || 'Erro ao processar os arquivos.');
+    }
+
+    const total = parseFloat(res.headers.get('X-Antecipacao-Total') || '0');
+    const qtd = res.headers.get('X-Antecipacao-Qtd-Itens') || '0';
+    const qtdAvisos = parseInt(res.headers.get('X-Antecipacao-Qtd-Avisos') || '0', 10);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : 'antecipacao_icms.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    document.getElementById('antecipacao-resumo').innerHTML = `
+      <div class="card">
+        <div class="card-label">Itens processados</div>
+        <div class="card-value">${qtd}</div>
+      </div>
+      <div class="card accent-red">
+        <div class="card-label">Total Antecipação</div>
         <div class="card-value">${brl(total)}</div>
       </div>
       ${qtdAvisos > 0 ? `

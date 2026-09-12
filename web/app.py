@@ -80,6 +80,13 @@ from src.tributofacil.retencoes_inss.consolidador import (
 from src.tributofacil.retencoes_inss.writer import gerar_excel as gerar_excel_retencoes_inss
 from src.tributofacil.dirbi.processor import processar as processar_dirbi
 from src.tributofacil.difal_bahia.writer import gerar_excel as gerar_excel_difal_bahia
+from src.tributofacil.antecipacao_icms.xml_parser import parse_nfe_xml as parse_nfe_xml_antecipacao
+from src.tributofacil.antecipacao_icms.calculator import (
+    calcular_item as calcular_antecipacao_item,
+    MVA_CATEGORIAS as MVA_CATEGORIAS_ANTECIPACAO,
+    ALIQUOTA_INTERNA_BA as ALIQUOTA_INTERNA_BA_ANTECIPACAO,
+)
+from src.tributofacil.antecipacao_icms.writer import gerar_excel as gerar_excel_antecipacao_icms
 from src.utilidades.duimp.parser import extrair as extrair_duimp
 from src.utilidades.duimp.calculos import (
     aplicar_rateio_peso_bruto as aplicar_rateio_peso_bruto_duimp,
@@ -647,6 +654,90 @@ async def tributofacil_difal_bahia_processar(arquivos: list[UploadFile] = File(.
                 "X-Difal-Total": f"{total_difal:.2f}",
                 "X-Difal-Qtd-Itens": str(len(linhas)),
                 "X-Difal-Qtd-Avisos": str(len(avisos)),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@app.get("/tributofacil/antecipacao-icms/categorias")
+async def tributofacil_antecipacao_icms_categorias():
+    """Lista as categorias de MVA genérica (art. 289, §17, do RICMS-BA) para o seletor da tela."""
+    return [
+        {"chave": chave, "label": label, "mva": mva}
+        for chave, (label, mva) in MVA_CATEGORIAS_ANTECIPACAO.items()
+    ]
+
+
+@app.post("/tributofacil/antecipacao-icms/processar", dependencies=[Depends(require_auth)])
+async def tributofacil_antecipacao_icms_processar(
+    arquivos: list[UploadFile] = File(...),
+    categoria: str = Form(...),
+    aliquota_interna: float = Form(ALIQUOTA_INTERNA_BA_ANTECIPACAO),
+):
+    if categoria not in MVA_CATEGORIAS_ANTECIPACAO:
+        raise HTTPException(status_code=422, detail=f"Categoria de MVA desconhecida: {categoria}")
+    categoria_label, mva_original = MVA_CATEGORIAS_ANTECIPACAO[categoria]
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="antecipacao_icms_"))
+    try:
+        linhas = []
+        avisos = []
+        for arquivo in arquivos:
+            dest_path = tmp_dir / arquivo.filename
+            dest_path.write_bytes(await arquivo.read())
+            try:
+                itens = parse_nfe_xml_antecipacao(dest_path, arquivo.filename)
+            except Exception as e:
+                avisos.append(f"{arquivo.filename}: erro ao ler o XML — {e}")
+                continue
+
+            if not itens:
+                avisos.append(f"{arquivo.filename}: nenhum item (<det>) encontrado na NF-e.")
+
+            for item in itens:
+                if item.uf_destino != "BA":
+                    avisos.append(
+                        f"{arquivo.filename} (NF {item.numero_nf}): UF de destino é "
+                        f"{item.uf_destino or '(vazio)'}, não BA — incluído mesmo assim, revisar."
+                    )
+                if item.uf_origem == item.uf_destino:
+                    avisos.append(
+                        f"{arquivo.filename} (NF {item.numero_nf}): operação interna (origem e destino "
+                        f"{item.uf_origem}) — antecipação não se aplica, incluído mesmo assim para revisão."
+                    )
+                if item.cfop_uso_consumo:
+                    avisos.append(
+                        f"{arquivo.filename} (NF {item.numero_nf}, item {item.n_item}): CFOP {item.cfop} "
+                        "é típico de uso/consumo ou ativo imobilizado — pode ser caso de DIFAL, não de "
+                        "antecipação parcial."
+                    )
+                res = calcular_antecipacao_item(
+                    item.valor_comercial, item.aliquota_interestadual, mva_original,
+                    aliquota_interna=aliquota_interna,
+                )
+                linhas.append((item, res))
+
+        if not linhas:
+            raise HTTPException(status_code=422, detail="Nenhum item válido encontrado nos arquivos enviados.")
+
+        excel_bytes = gerar_excel_antecipacao_icms(linhas, categoria_label, avisos)
+        total_antecipacao = sum(res.antecipacao_devida for _, res in linhas)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Antecipacao_ICMS_{ts}.xlsx"
+
+        return StreamingResponse(
+            iter([excel_bytes]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Antecipacao-Total": f"{total_antecipacao:.2f}",
+                "X-Antecipacao-Qtd-Itens": str(len(linhas)),
+                "X-Antecipacao-Qtd-Avisos": str(len(avisos)),
             },
         )
     except HTTPException:
