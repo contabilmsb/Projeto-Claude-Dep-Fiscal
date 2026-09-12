@@ -47,6 +47,25 @@ _CFOP_USO_CONSUMO_ATIVO = {
     "5556", "6556", "7556",  # venda de material de uso ou consumo
 }
 
+# Descrição do campo `orig` do ICMS (Origem da Mercadoria), conforme layout da NF-e.
+_DESCRICAO_ORIGEM = {
+    "0": "Nacional, exceto as indicadas nos códigos 3, 4, 5 e 8",
+    "1": "Estrangeira — Importação direta, exceto a indicada no código 6",
+    "2": "Estrangeira — Adquirida no mercado interno, exceto a indicada no código 7",
+    "3": "Nacional, com Conteúdo de Importação superior a 40% e inferior ou igual a 70%",
+    "4": "Nacional, produção conforme processos produtivos básicos",
+    "5": "Nacional, com Conteúdo de Importação inferior ou igual a 40%",
+    "6": "Estrangeira — Importação direta, sem similar nacional (lista CAMEX)",
+    "7": "Estrangeira — Adquirida no mercado interno, sem similar nacional (lista CAMEX)",
+    "8": "Nacional, com Conteúdo de Importação superior a 70%",
+}
+
+
+def _descricao_origem(orig: str | None) -> str:
+    if orig is None:
+        return ""
+    return f"{orig} - {_DESCRICAO_ORIGEM.get(orig, 'desconhecida')}"
+
 
 def _t(el, path: str, default: str | None = None) -> str | None:
     if el is None:
@@ -79,6 +98,7 @@ class ItemAntecipacao:
     cfop: str
     ncm: str
     cst_csosn: str                # ex.: "CST 00" ou "CSOSN 102"
+    origem_mercadoria: str        # ex.: "1 - Estrangeira — Importação direta..." (campo `orig` do ICMS)
     n_item: str
     descricao_produto: str
     valor_comercial: float        # vProd + frete + seguro + outros - desconto
@@ -167,6 +187,7 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str) -> ItemAntecipa
         cfop=cfop,
         ncm=_t(prod, "nfe:NCM", "") or "",
         cst_csosn=cst_csosn,
+        origem_mercadoria=_descricao_origem(orig_mercadoria),
         n_item=det.get("nItem", ""),
         descricao_produto=_t(prod, "nfe:xProd", "") or "",
         valor_comercial=valor_comercial,
