@@ -25,7 +25,11 @@ ALIQUOTA_INTERNA_BA = 0.205
 # Percentuais de MVA original por categoria genérica de mercadoria, para
 # antecipação de mercadorias NÃO enquadradas no regime de substituição
 # tributária por antecipação (art. 289, §17, do RICMS-BA).
+# "sem_mva" cobre o caso em que nenhuma MVA se aplica — a fórmula ainda
+# ajusta a base pela diferença entre a alíquota interestadual e a interna
+# (§14), só que sem nenhum acréscimo de margem sobre o valor de aquisição.
 MVA_CATEGORIAS: dict[str, tuple[str, float]] = {
+    "sem_mva":                  ("Sem MVA", 0.0),
     "generos_alimenticios":     ("Gêneros alimentícios", 0.50),
     "bebidas_alcoolicas":       ("Bebidas alcoólicas", 0.30),
     "bebidas_nao_alcoolicas":   ("Bebidas não alcoólicas", 0.70),

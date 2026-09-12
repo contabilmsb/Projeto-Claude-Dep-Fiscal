@@ -1098,10 +1098,16 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
           <input type="number" id="antecipacao-aliquota-interna" value="20.5" step="0.01" min="0" max="99">
         </div>
         <div class="error-msg" id="antecipacao-error" style="display:none;"></div>
-        <button class="btn btn-primary" onclick="antecipacaoIcmsProcessar()" id="antecipacao-btn" style="width:auto;padding:10px 24px;align-self:flex-start;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Processar e Baixar Excel
-        </button>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="antecipacaoIcmsProcessar()" id="antecipacao-btn" style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Processar e Baixar Excel
+          </button>
+          <button class="btn btn-secondary" onclick="antecipacaoLimparArquivos()" style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Limpar Arquivos
+          </button>
+        </div>
       </div>
     </div>
 
@@ -3156,7 +3162,7 @@ async function antecipacaoCarregaCategorias() {
     const res = await fetch('/tributofacil/antecipacao-icms/categorias');
     const categorias = await res.json();
     sel.innerHTML = '<option value="">Selecione a categoria…</option>' + categorias.map(c =>
-      `<option value="${c.chave}">${c.label} (MVA ${(c.mva * 100).toFixed(0)}%)</option>`
+      `<option value="${c.chave}">${c.label}${c.mva > 0 ? ` (MVA ${(c.mva * 100).toFixed(0)}%)` : ''}</option>`
     ).join('');
     sel.value = '';
     _antecipacaoCategoriasCarregadas = true;
@@ -3171,6 +3177,16 @@ function antecipacaoAtualizaLista() {
   el.textContent = files.length
     ? `${files.length} arquivo(s) selecionado(s): ${[...files].map(f => f.name).join(', ')}`
     : '';
+}
+
+function antecipacaoLimparArquivos() {
+  document.getElementById('antecipacao-files').value = '';
+  document.getElementById('antecipacao-filelist').textContent = '';
+  document.getElementById('antecipacao-categoria').value = '';
+  document.getElementById('antecipacao-aliquota-interna').value = '20.5';
+  document.getElementById('antecipacao-error').style.display = 'none';
+  document.getElementById('antecipacao-resumo').innerHTML = '';
+  showToast('✓ Arquivos limpos — selecione os arquivos novamente.', 'ok', 3000);
 }
 
 async function antecipacaoIcmsProcessar() {
