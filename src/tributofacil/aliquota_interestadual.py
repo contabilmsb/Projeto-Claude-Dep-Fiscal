@@ -23,10 +23,16 @@ _REGIOES_DESTINO_ALIQ_7 = {"N", "NE", "CO", "ES"}
 _ORIG_IMPORTADO_4PCT = {"1", "2", "3", "6", "7", "8"}
 
 
+def eh_origem_importada(orig_mercadoria: str | None) -> bool:
+    """True quando o campo `orig` do ICMS indica mercadoria importada do
+    exterior ou com conteúdo de importação > 40% (Res. Senado 13/2012)."""
+    return orig_mercadoria in _ORIG_IMPORTADO_4PCT
+
+
 def aliquota_referencia_resolucao_2289(uf_origem: str, uf_destino: str, orig_mercadoria: str | None) -> float:
     """Alíquota interestadual constitucional (Res. Senado 22/89 e 13/2012),
     aplicável independentemente do regime tributário do remetente."""
-    if orig_mercadoria in _ORIG_IMPORTADO_4PCT:
+    if eh_origem_importada(orig_mercadoria):
         return 0.04
     regiao_origem = _REGIAO_UF.get(uf_origem)
     regiao_destino = _REGIAO_UF.get(uf_destino)

@@ -34,7 +34,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.tributofacil.aliquota_interestadual import aliquota_referencia_resolucao_2289
+from src.tributofacil.aliquota_interestadual import aliquota_referencia_resolucao_2289, eh_origem_importada
 
 NS = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
 
@@ -120,7 +120,17 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str) -> ItemAntecipa
     uf_destino = _t(dest, "nfe:enderDest/nfe:UF", "") or ""
 
     icms_destacado = v_icms is not None
-    if icms_destacado and p_icms is not None:
+    if eh_origem_importada(orig_mercadoria):
+        # Res. Senado 13/2012: 4% é constitucional para mercadoria importada
+        # ou com conteúdo de importação > 40% — prevalece sobre qualquer
+        # alíquota destacada no XML, inclusive em caso de divergência.
+        aliquota = 0.04
+        origem_aliquota = "Alíquota especial de 4% para mercadoria importada (Res. Senado 13/2012, campo 'orig' do ICMS)"
+        if icms_destacado and p_icms is not None and abs(p_icms / 100.0 - 0.04) > 0.001:
+            origem_aliquota += (
+                f" — ATENÇÃO: pICMS destacado no XML ({p_icms:.2f}%) diverge do exigido, confira a nota"
+            )
+    elif icms_destacado and p_icms is not None:
         aliquota = p_icms / 100.0
         origem_aliquota = "Destacada no XML (pICMS do item)"
     elif icms_destacado and valor_comercial:
@@ -129,8 +139,8 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str) -> ItemAntecipa
     else:
         aliquota = aliquota_referencia_resolucao_2289(uf_origem, uf_destino, orig_mercadoria)
         origem_aliquota = (
-            "Alíquota interestadual constitucional por UF de origem/destino (Res. Senado 22/89 e "
-            "13/2012) — nota sem ICMS próprio destacado (art. 269, VIII, do RICMS-BA)"
+            "Alíquota interestadual constitucional por UF de origem/destino (Res. Senado 22/89) — "
+            "nota sem ICMS próprio destacado (art. 269, VIII, do RICMS-BA)"
         )
 
     crt = _t(emit, "nfe:CRT")
