@@ -3155,9 +3155,10 @@ async function antecipacaoCarregaCategorias() {
   try {
     const res = await fetch('/tributofacil/antecipacao-icms/categorias');
     const categorias = await res.json();
-    sel.innerHTML = categorias.map(c =>
+    sel.innerHTML = '<option value="">Selecione a categoria…</option>' + categorias.map(c =>
       `<option value="${c.chave}">${c.label} (MVA ${(c.mva * 100).toFixed(0)}%)</option>`
     ).join('');
+    sel.value = '';
     _antecipacaoCategoriasCarregadas = true;
   } catch (e) {
     sel.innerHTML = '<option value="">Erro ao carregar categorias</option>';

@@ -19,29 +19,18 @@ COLUNAS = [
     ("Arquivo", 24), ("Chave NF-e", 26), ("Número NF", 10), ("Emissão", 12),
     ("CNPJ Emitente", 16), ("Emitente", 34), ("UF Origem", 8), ("UF Destino", 8),
     ("Regime", 16), ("CFOP", 8), ("NCM", 10), ("Item", 6), ("Descrição", 32),
-    ("Valor Comercial", 14), ("Alíq. Interestadual", 12), ("Categoria", 30),
-    ("MVA Original", 12), ("MVA Ajustada", 12), ("Base de Cálculo", 14),
+    ("Valor Comercial", 14), ("Alíq. Interestadual", 12), ("Origem da Alíquota", 40),
+    ("Categoria", 30), ("MVA Original", 12), ("MVA Ajustada", 12), ("Base de Cálculo", 14),
     ("Alíq. Interna BA", 12), ("Crédito de Origem", 14), ("Antecipação Devida", 16),
     ("Observações", 44),
 ]
 
-COLS_MOEDA = {14, 19, 21, 22}
-COLS_PERCENTUAL = {15, 17, 18, 20}
+COLS_MOEDA = {14, 20, 22, 23}
+COLS_PERCENTUAL = {15, 18, 19, 21}
 
 
 def _observacoes(item: ItemAntecipacao, res: ResultadoAntecipacaoItem) -> str:
     obs = []
-    if not item.icms_destacado:
-        if item.percentual_credito_simples is not None:
-            obs.append(
-                f"Simples Nacional (CSOSN com permissão de crédito) — {item.percentual_credito_simples:.2f}% "
-                f"de ICMS embutido no preço (art. 23 da LC 123/2006) usado como crédito de origem."
-            )
-        else:
-            obs.append(
-                "Simples Nacional sem percentual de crédito de ICMS informado na nota — crédito de "
-                "origem considerado 0% (posição conservadora)."
-            )
     if not res.ajuste_aplicado:
         obs.append(
             "Alíquota interna não superior à interestadual — usada a MVA original sem ajuste (§15 do "
@@ -83,8 +72,8 @@ def gerar_excel(
             item.arquivo, item.chave_nfe, item.numero_nf, (item.data_emissao or "")[:10],
             item.cnpj_emitente, item.nome_emitente, item.uf_origem, item.uf_destino,
             item.regime_emitente, item.cfop, item.ncm, item.n_item, item.descricao_produto,
-            round(item.valor_comercial, 2), res.aliquota_interestadual, categoria_label,
-            res.mva_original, res.mva_ajustada, round(res.base_calculo, 2),
+            round(item.valor_comercial, 2), res.aliquota_interestadual, item.origem_aliquota,
+            categoria_label, res.mva_original, res.mva_ajustada, round(res.base_calculo, 2),
             res.aliquota_interna, round(res.credito_origem, 2), round(res.antecipacao_devida, 2),
             _observacoes(item, res),
         ]
@@ -99,8 +88,8 @@ def gerar_excel(
 
     total_row = row
     ws.cell(row=total_row, column=1, value=f"TOTAL — {len(linhas)} item(ns)").font = Font(bold=True)
-    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=21)
-    tot_cell = ws.cell(row=total_row, column=22, value=round(total_antecipacao, 2))
+    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=22)
+    tot_cell = ws.cell(row=total_row, column=23, value=round(total_antecipacao, 2))
     tot_cell.font = Font(bold=True)
     tot_cell.number_format = "#,##0.00"
 

@@ -50,25 +50,11 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.tributofacil.aliquota_interestadual import aliquota_referencia_resolucao_2289
+
 NS = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
 
 _RE_CONVENIO_5291 = re.compile(r"conv(?:[eê]nio)?\.?\s*(?:icms)?\s*n?[o°º]?\.?\s*52[\s/.\-]*91", re.IGNORECASE)
-
-# Resolução do Senado Federal nº 22/1989 — alíquota interestadual de referência
-# do ICMS, por região da UF de origem.
-_REGIAO_UF = {
-    "AC": "N", "AP": "N", "AM": "N", "PA": "N", "RO": "N", "RR": "N", "TO": "N",
-    "AL": "NE", "BA": "NE", "CE": "NE", "MA": "NE", "PB": "NE", "PE": "NE", "PI": "NE", "RN": "NE", "SE": "NE",
-    "DF": "CO", "GO": "CO", "MT": "CO", "MS": "CO",
-    "ES": "ES",
-    "SP": "SE", "RJ": "SE", "MG": "SE",
-    "PR": "S", "SC": "S", "RS": "S",
-}
-_REGIOES_DESTINO_ALIQ_7 = {"N", "NE", "CO", "ES"}
-# Resolução do Senado Federal nº 13/2012 — 4% para bens/mercadorias
-# importados do exterior ou com conteúdo de importação > 40% (campo `orig`
-# do ICMS: 1, 2, 3, 6, 7 ou 8).
-_ORIG_IMPORTADO_4PCT = {"1", "2", "3", "6", "7", "8"}
 
 
 def _t(el, path: str, default: str | None = None) -> str | None:
@@ -122,19 +108,6 @@ def _nota_menciona_convenio_5291(inf_nfe) -> bool:
     inf_adic = inf_nfe.find("nfe:infAdic", NS)
     texto = (_t(inf_adic, "nfe:infCpl", "") or "") + " " + (_t(inf_adic, "nfe:infAdFisco", "") or "")
     return bool(_RE_CONVENIO_5291.search(texto))
-
-
-def _aliquota_referencia_resolucao_2289(uf_origem: str, uf_destino: str, orig_mercadoria: str | None) -> float:
-    """Alíquota interestadual constitucional (Res. Senado 22/89 e 13/2012),
-    usada como referência quando a nota não traz ICMS próprio destacado
-    (Simples Nacional) — independe do regime tributário do remetente."""
-    if orig_mercadoria in _ORIG_IMPORTADO_4PCT:
-        return 0.04
-    regiao_origem = _REGIAO_UF.get(uf_origem)
-    regiao_destino = _REGIAO_UF.get(uf_destino)
-    if regiao_origem in ("S", "SE") and regiao_destino in _REGIOES_DESTINO_ALIQ_7:
-        return 0.07
-    return 0.12
 
 
 def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str, nota_convenio_5291: bool) -> ItemDifal:
@@ -201,7 +174,7 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str, nota_convenio_5
         # independente do regime do remetente.
         valor_operacao = valor_comercial
         aliquota = (p_cred_sn / 100.0) if p_cred_sn is not None else 0.0
-        aliquota_referencia = _aliquota_referencia_resolucao_2289(uf_origem, uf_destino, orig_mercadoria)
+        aliquota_referencia = aliquota_referencia_resolucao_2289(uf_origem, uf_destino, orig_mercadoria)
 
     crt = _t(emit, "nfe:CRT")
 

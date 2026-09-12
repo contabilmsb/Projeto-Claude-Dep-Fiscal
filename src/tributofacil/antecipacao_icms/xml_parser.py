@@ -12,21 +12,29 @@ revenda — por isso a base de cálculo aqui é sempre o valor comercial do item
 (vProd + frete + seguro + outras despesas − desconto), sem a fórmula de
 "base dupla por dentro" do DIFAL.
 
-Para cada item (<det>) extrai:
-  - a alíquota do ICMS embutido no preço, usada como crédito na fórmula da
-    antecipação: no Regime Normal, a própria alíquota (pICMS) destacada no
-    XML; no Simples Nacional, o percentual de crédito informado (pCredSN,
-    art. 23 da LC 123/2006), ou 0% quando não informado.
-  - sinalizações (avisos) para os casos em que a nota não parece ser uma
-    aquisição interestadual para revenda: operação interna (mesma UF),
-    destino diferente da Bahia, ou CFOP típico de uso/consumo (que é caso de
-    DIFAL, não de antecipação).
+Para cada item (<det>) extrai a alíquota interestadual (o "ALQ inter" do §14
+do art. 289 — usada tanto na MVA ajustada quanto como crédito de origem a
+deduzir):
+  - Regime Normal, com ICMS próprio destacado: a alíquota (pICMS) informada
+    no próprio item — é a que o remetente efetivamente aplicou.
+  - Simples Nacional, sem ICMS próprio destacado: a alíquota interestadual
+    constitucional (Res. Senado 22/89 e 13/2012), obtida a partir da UF do
+    fornecedor e da UF de destino — nos termos do art. 269, VIII, do
+    RICMS-BA ("... o valor resultante da aplicação do percentual da
+    alíquota interestadual prevista na legislação da unidade da Federação
+    de origem sobre o valor da operação constante no documento fiscal").
+
+Também sinaliza (via campos booleanos, para o chamador gerar avisos) os
+casos em que a nota não parece ser uma aquisição interestadual para
+revenda: operação interna (mesma UF), destino diferente da Bahia, ou CFOP
+típico de uso/consumo (que é caso de DIFAL, não de antecipação).
 """
 
-import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
+
+from src.tributofacil.aliquota_interestadual import aliquota_referencia_resolucao_2289
 
 NS = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
 
@@ -73,9 +81,9 @@ class ItemAntecipacao:
     n_item: str
     descricao_produto: str
     valor_comercial: float        # vProd + frete + seguro + outros - desconto
-    aliquota_interestadual: float  # ICMS embutido no preço (pICMS, ou pCredSN no Simples Nacional)
+    aliquota_interestadual: float  # "ALQ inter" do §14 do art. 289
+    origem_aliquota: str          # como a alíquota foi obtida (para observações)
     icms_destacado: bool
-    percentual_credito_simples: float | None
     cfop_uso_consumo: bool        # CFOP típico de uso/consumo/ativo — provável caso de DIFAL, não antecipação
 
 
@@ -91,17 +99,15 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str) -> ItemAntecipa
 
     v_icms = None
     p_icms = None
-    p_cred_sn = None
+    orig_mercadoria = None
     if icms_node is not None:
+        orig_mercadoria = _t(icms_node, "nfe:orig")
         v_icms_txt = _t(icms_node, "nfe:vICMS")
         if v_icms_txt is not None:
             v_icms = float(v_icms_txt)
         p_icms_txt = _t(icms_node, "nfe:pICMS")
         if p_icms_txt is not None:
             p_icms = float(p_icms_txt)
-        p_cred_sn_txt = _t(icms_node, "nfe:pCredSN")
-        if p_cred_sn_txt is not None:
-            p_cred_sn = float(p_cred_sn_txt)
 
     v_prod = _f(prod, "nfe:vProd")
     v_frete = _f(prod, "nfe:vFrete")
@@ -110,11 +116,22 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str) -> ItemAntecipa
     v_desc = _f(prod, "nfe:vDesc")
     valor_comercial = v_prod + v_frete + v_seg + v_outro - v_desc
 
+    uf_origem = _t(emit, "nfe:enderEmit/nfe:UF", "") or ""
+    uf_destino = _t(dest, "nfe:enderDest/nfe:UF", "") or ""
+
     icms_destacado = v_icms is not None
-    if icms_destacado:
-        aliquota = (p_icms / 100.0) if p_icms is not None else ((v_icms / valor_comercial) if valor_comercial else 0.0)
+    if icms_destacado and p_icms is not None:
+        aliquota = p_icms / 100.0
+        origem_aliquota = "Destacada no XML (pICMS do item)"
+    elif icms_destacado and valor_comercial:
+        aliquota = v_icms / valor_comercial
+        origem_aliquota = "Calculada a partir do ICMS destacado no item (vICMS / valor comercial)"
     else:
-        aliquota = (p_cred_sn / 100.0) if p_cred_sn is not None else 0.0
+        aliquota = aliquota_referencia_resolucao_2289(uf_origem, uf_destino, orig_mercadoria)
+        origem_aliquota = (
+            "Alíquota interestadual constitucional por UF de origem/destino (Res. Senado 22/89 e "
+            "13/2012) — nota sem ICMS próprio destacado (art. 269, VIII, do RICMS-BA)"
+        )
 
     crt = _t(emit, "nfe:CRT")
     cfop = _t(prod, "nfe:CFOP", "") or ""
@@ -126,8 +143,8 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str) -> ItemAntecipa
         data_emissao=(_t(ide, "nfe:dhEmi") or _t(ide, "nfe:dEmi") or ""),
         cnpj_emitente=_t(emit, "nfe:CNPJ", "") or "",
         nome_emitente=_t(emit, "nfe:xNome", "") or "",
-        uf_origem=_t(emit, "nfe:enderEmit/nfe:UF", "") or "",
-        uf_destino=_t(dest, "nfe:enderDest/nfe:UF", "") or "",
+        uf_origem=uf_origem,
+        uf_destino=uf_destino,
         regime_emitente=_regime(crt),
         cfop=cfop,
         ncm=_t(prod, "nfe:NCM", "") or "",
@@ -135,8 +152,8 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str) -> ItemAntecipa
         descricao_produto=_t(prod, "nfe:xProd", "") or "",
         valor_comercial=valor_comercial,
         aliquota_interestadual=aliquota,
+        origem_aliquota=origem_aliquota,
         icms_destacado=icms_destacado,
-        percentual_credito_simples=p_cred_sn,
         cfop_uso_consumo=cfop in _CFOP_USO_CONSUMO_ATIVO,
     )
 
