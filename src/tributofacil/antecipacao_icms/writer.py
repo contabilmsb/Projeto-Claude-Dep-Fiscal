@@ -5,6 +5,8 @@ substituição tributária) sobre compras interestaduais na Bahia.
 
 import io
 
+from datetime import datetime
+
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 from openpyxl.utils import get_column_letter
@@ -28,6 +30,16 @@ COLUNAS = [
 
 COLS_MOEDA = {16, 22, 24, 25}
 COLS_PERCENTUAL = {17, 20, 21, 23}
+
+
+def _data_emissao_br(data_emissao: str) -> str:
+    """Converte a data de emissão (ISO, ex.: 2026-06-03T15:22:55-03:00) para dd/mm/aaaa."""
+    if not data_emissao:
+        return ""
+    try:
+        return datetime.fromisoformat(data_emissao).strftime("%d/%m/%Y")
+    except ValueError:
+        return data_emissao[:10]
 
 
 def _observacoes(item: ItemAntecipacao, res: ResultadoAntecipacaoItem) -> str:
@@ -70,7 +82,7 @@ def gerar_excel(
     total_antecipacao = 0.0
     for item, res in linhas:
         valores = [
-            item.arquivo, item.chave_nfe, item.numero_nf, (item.data_emissao or "")[:10],
+            item.arquivo, item.chave_nfe, item.numero_nf, _data_emissao_br(item.data_emissao),
             item.cnpj_emitente, item.nome_emitente, item.uf_origem, item.uf_destino,
             item.regime_emitente, item.cfop, item.ncm, item.cst_csosn, item.origem_mercadoria,
             item.n_item, item.descricao_produto,
