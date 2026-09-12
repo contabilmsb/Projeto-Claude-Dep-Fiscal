@@ -78,6 +78,7 @@ class ItemAntecipacao:
     regime_emitente: str          # "Normal" ou "Simples Nacional"
     cfop: str
     ncm: str
+    cst_csosn: str                # ex.: "CST 00" ou "CSOSN 102"
     n_item: str
     descricao_produto: str
     valor_comercial: float        # vProd + frete + seguro + outros - desconto
@@ -100,6 +101,7 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str) -> ItemAntecipa
     v_icms = None
     p_icms = None
     orig_mercadoria = None
+    cst_csosn = ""
     if icms_node is not None:
         orig_mercadoria = _t(icms_node, "nfe:orig")
         v_icms_txt = _t(icms_node, "nfe:vICMS")
@@ -108,6 +110,12 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str) -> ItemAntecipa
         p_icms_txt = _t(icms_node, "nfe:pICMS")
         if p_icms_txt is not None:
             p_icms = float(p_icms_txt)
+        cst_txt = _t(icms_node, "nfe:CST")
+        csosn_txt = _t(icms_node, "nfe:CSOSN")
+        if cst_txt is not None:
+            cst_csosn = f"CST {cst_txt}"
+        elif csosn_txt is not None:
+            cst_csosn = f"CSOSN {csosn_txt}"
 
     v_prod = _f(prod, "nfe:vProd")
     v_frete = _f(prod, "nfe:vFrete")
@@ -158,6 +166,7 @@ def _extrai_item(det, ide, emit, dest, arquivo: str, chave: str) -> ItemAntecipa
         regime_emitente=_regime(crt),
         cfop=cfop,
         ncm=_t(prod, "nfe:NCM", "") or "",
+        cst_csosn=cst_csosn,
         n_item=det.get("nItem", ""),
         descricao_produto=_t(prod, "nfe:xProd", "") or "",
         valor_comercial=valor_comercial,
