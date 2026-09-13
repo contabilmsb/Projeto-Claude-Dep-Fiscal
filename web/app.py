@@ -83,7 +83,6 @@ from src.tributofacil.difal_bahia.writer import gerar_excel as gerar_excel_difal
 from src.tributofacil.antecipacao_icms.xml_parser import parse_nfe_xml as parse_nfe_xml_antecipacao
 from src.tributofacil.antecipacao_icms.calculator import (
     calcular_item as calcular_antecipacao_item,
-    MVA_CATEGORIAS as MVA_CATEGORIAS_ANTECIPACAO,
     ALIQUOTA_INTERNA_BA as ALIQUOTA_INTERNA_BA_ANTECIPACAO,
 )
 from src.tributofacil.antecipacao_icms.writer import gerar_excel as gerar_excel_antecipacao_icms
@@ -664,25 +663,11 @@ async def tributofacil_difal_bahia_processar(arquivos: list[UploadFile] = File(.
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-@app.get("/tributofacil/antecipacao-icms/categorias")
-async def tributofacil_antecipacao_icms_categorias():
-    """Lista as categorias de MVA genérica (art. 289, §17, do RICMS-BA) para o seletor da tela."""
-    return [
-        {"chave": chave, "label": label, "mva": mva}
-        for chave, (label, mva) in MVA_CATEGORIAS_ANTECIPACAO.items()
-    ]
-
-
 @app.post("/tributofacil/antecipacao-icms/processar", dependencies=[Depends(require_auth)])
 async def tributofacil_antecipacao_icms_processar(
     arquivos: list[UploadFile] = File(...),
-    categoria: str = Form(...),
     aliquota_interna: float = Form(ALIQUOTA_INTERNA_BA_ANTECIPACAO),
 ):
-    if categoria not in MVA_CATEGORIAS_ANTECIPACAO:
-        raise HTTPException(status_code=422, detail=f"Categoria de MVA desconhecida: {categoria}")
-    categoria_label, mva_original = MVA_CATEGORIAS_ANTECIPACAO[categoria]
-
     tmp_dir = Path(tempfile.mkdtemp(prefix="antecipacao_icms_"))
     try:
         linhas = []
@@ -717,7 +702,7 @@ async def tributofacil_antecipacao_icms_processar(
                         "antecipação parcial."
                     )
                 res = calcular_antecipacao_item(
-                    item.valor_comercial, item.aliquota_interestadual, mva_original,
+                    item.valor_comercial, item.aliquota_interestadual,
                     aliquota_interna=aliquota_interna,
                 )
                 linhas.append((item, res))
@@ -725,7 +710,7 @@ async def tributofacil_antecipacao_icms_processar(
         if not linhas:
             raise HTTPException(status_code=422, detail="Nenhum item válido encontrado nos arquivos enviados.")
 
-        excel_bytes = gerar_excel_antecipacao_icms(linhas, categoria_label, avisos)
+        excel_bytes = gerar_excel_antecipacao_icms(linhas, avisos)
         total_antecipacao = sum(res.antecipacao_devida for _, res in linhas)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"Antecipacao_ICMS_{ts}.xlsx"

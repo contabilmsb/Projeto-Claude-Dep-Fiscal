@@ -1077,22 +1077,19 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         <div class="section-label">Antecipação Parcial de ICMS (sem substituição tributária)</div>
         <p style="font-size:12px;color:var(--gray600);line-height:1.6;margin:0;">
           Envie os arquivos XML das NF-e de compra interestadual de mercadorias destinadas à revenda.
-          Calcula a antecipação parcial do ICMS (Art. 12-A da Lei nº 7.014/1996; art. 289, §14 e §17,
-          do RICMS-BA), usando a MVA genérica da categoria selecionada, ajustada pela diferença entre a
-          alíquota interestadual e a alíquota interna informada. Este valor é recuperável como crédito
-          pelo contribuinte do regime de conta-corrente fiscal (Art. 309, II do RICMS-BA). Só cobre a
-          antecipação <strong>sem</strong> substituição tributária — mercadorias do Anexo 1 (com MVA
-          específico por produto, que encerra a fase de tributação) não são tratadas aqui.
+          Calcula a antecipação parcial do ICMS (Art. 12-A da Lei nº 7.014/1996; art. 289 do RICMS-BA)
+          pela diferença entre o ICMS pela alíquota interna da Bahia e o ICMS pela alíquota
+          interestadual, sobre o valor comercial de cada item — sem margem de valor agregado (MVA).
+          Este valor é recuperável como crédito pelo contribuinte do regime de conta-corrente fiscal
+          (Art. 309, II do RICMS-BA). Só cobre a antecipação <strong>sem</strong> substituição
+          tributária — mercadorias do Anexo 1 (com MVA específico por produto, que encerra a fase de
+          tributação) não são tratadas aqui.
         </p>
         <div class="form-group">
           <label>Arquivos XML (um ou mais) *</label>
           <input type="file" id="antecipacao-files" accept=".xml" multiple onchange="antecipacaoAtualizaLista()">
         </div>
         <div id="antecipacao-filelist" style="font-size:12px;color:var(--gray600);"></div>
-        <div class="form-group">
-          <label>Categoria da mercadoria (MVA) *</label>
-          <select id="antecipacao-categoria"></select>
-        </div>
         <div class="form-group">
           <label>Alíquota interna da Bahia (%) *</label>
           <input type="number" id="antecipacao-aliquota-interna" value="20.5" step="0.01" min="0" max="99">
@@ -1115,7 +1112,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <h3>Como funciona</h3>
       <p style="font-size:12px;color:var(--gray600);line-height:1.7;">
         1. Selecione um ou mais arquivos XML de NF-e de compra interestadual para revenda.<br>
-        2. Escolha a categoria da mercadoria (define a MVA genérica) e confirme a alíquota interna.<br>
+        2. Confirme a alíquota interna da Bahia.<br>
         3. Nada é salvo no sistema — o resultado sai direto em um Excel para download,
         com uma aba de avisos quando algo merece atenção (ex.: destino diferente de BA, CFOP de uso/consumo).
       </p>
@@ -3065,7 +3062,6 @@ function difalSwitchTab(tab) {
   document.getElementById('difal-tab-antecipacao').classList.toggle('active', tab === 'antecipacao');
   document.getElementById('difal-panel-bahia').style.display = tab === 'bahia' ? 'grid' : 'none';
   document.getElementById('difal-panel-antecipacao').style.display = tab === 'antecipacao' ? 'grid' : 'none';
-  if (tab === 'antecipacao') antecipacaoCarregaCategorias();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -3153,24 +3149,6 @@ async function difalProcessar() {
 // ══════════════════════════════════════════════════════════════════
 // Antecipação Parcial de ICMS
 // ══════════════════════════════════════════════════════════════════
-let _antecipacaoCategoriasCarregadas = false;
-
-async function antecipacaoCarregaCategorias() {
-  if (_antecipacaoCategoriasCarregadas) return;
-  const sel = document.getElementById('antecipacao-categoria');
-  try {
-    const res = await fetch('/tributofacil/antecipacao-icms/categorias');
-    const categorias = await res.json();
-    sel.innerHTML = '<option value="">Selecione a categoria…</option>' + categorias.map(c =>
-      `<option value="${c.chave}">${c.label}${c.mva > 0 ? ` (MVA ${(c.mva * 100).toFixed(0)}%)` : ''}</option>`
-    ).join('');
-    sel.value = '';
-    _antecipacaoCategoriasCarregadas = true;
-  } catch (e) {
-    sel.innerHTML = '<option value="">Erro ao carregar categorias</option>';
-  }
-}
-
 function antecipacaoAtualizaLista() {
   const files = document.getElementById('antecipacao-files').files;
   const el = document.getElementById('antecipacao-filelist');
@@ -3182,7 +3160,6 @@ function antecipacaoAtualizaLista() {
 function antecipacaoLimparArquivos() {
   document.getElementById('antecipacao-files').value = '';
   document.getElementById('antecipacao-filelist').textContent = '';
-  document.getElementById('antecipacao-categoria').value = '';
   document.getElementById('antecipacao-aliquota-interna').value = '20.5';
   document.getElementById('antecipacao-error').style.display = 'none';
   document.getElementById('antecipacao-resumo').innerHTML = '';
@@ -3199,10 +3176,9 @@ async function antecipacaoIcmsProcessar() {
     errEl.style.display = 'block';
     return;
   }
-  const categoria = document.getElementById('antecipacao-categoria').value;
   const aliquotaInterna = parseFloat(document.getElementById('antecipacao-aliquota-interna').value);
-  if (!categoria || isNaN(aliquotaInterna)) {
-    errEl.textContent = 'Selecione a categoria e informe a alíquota interna.';
+  if (isNaN(aliquotaInterna)) {
+    errEl.textContent = 'Informe a alíquota interna.';
     errEl.style.display = 'block';
     return;
   }
@@ -3213,7 +3189,6 @@ async function antecipacaoIcmsProcessar() {
 
   const fd = new FormData();
   [...files].forEach(f => fd.append('arquivos', f));
-  fd.append('categoria', categoria);
   fd.append('aliquota_interna', (aliquotaInterna / 100).toString());
 
   try {

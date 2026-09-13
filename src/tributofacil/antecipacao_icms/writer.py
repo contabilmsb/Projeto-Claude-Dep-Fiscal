@@ -23,13 +23,12 @@ COLUNAS = [
     ("Regime", 16), ("CFOP", 8), ("NCM", 10), ("CST/CSOSN", 12), ("Origem da Mercadoria", 50),
     ("Item", 6), ("Descrição", 32),
     ("Valor Comercial", 14), ("Alíq. Interestadual", 12), ("Origem da Alíquota", 40),
-    ("Categoria", 30), ("MVA Original", 12), ("MVA Ajustada", 12), ("Base de Cálculo", 14),
-    ("Alíq. Interna BA", 12), ("Crédito de Origem", 14), ("Antecipação Devida", 16),
-    ("Observações", 44),
+    ("ICMS Interestadual", 14), ("Alíq. Interna BA", 12), ("ICMS Interno BA", 14),
+    ("Antecipação Devida", 16), ("Observações", 44),
 ]
 
-COLS_MOEDA = {16, 22, 24, 25}
-COLS_PERCENTUAL = {17, 20, 21, 23}
+COLS_MOEDA = {16, 19, 21, 22}
+COLS_PERCENTUAL = {17, 20}
 
 
 def _data_emissao_br(data_emissao: str) -> str:
@@ -44,11 +43,6 @@ def _data_emissao_br(data_emissao: str) -> str:
 
 def _observacoes(item: ItemAntecipacao, res: ResultadoAntecipacaoItem) -> str:
     obs = []
-    if not res.ajuste_aplicado:
-        obs.append(
-            "Alíquota interna não superior à interestadual — usada a MVA original sem ajuste (§15 do "
-            "art. 289 do RICMS-BA)."
-        )
     if item.uf_destino != "BA":
         obs.append(f"ATENÇÃO: UF de destino da nota é {item.uf_destino}, não BA")
     if item.uf_origem == item.uf_destino:
@@ -63,7 +57,6 @@ def _observacoes(item: ItemAntecipacao, res: ResultadoAntecipacaoItem) -> str:
 
 def gerar_excel(
     linhas: list[tuple[ItemAntecipacao, ResultadoAntecipacaoItem]],
-    categoria_label: str,
     avisos: list[str],
 ) -> bytes:
     wb = Workbook()
@@ -87,8 +80,8 @@ def gerar_excel(
             item.regime_emitente, item.cfop, item.ncm, item.cst_csosn, item.origem_mercadoria,
             item.n_item, item.descricao_produto,
             round(item.valor_comercial, 2), res.aliquota_interestadual, item.origem_aliquota,
-            categoria_label, res.mva_original, res.mva_ajustada, round(res.base_calculo, 2),
-            res.aliquota_interna, round(res.credito_origem, 2), round(res.antecipacao_devida, 2),
+            round(res.icms_interestadual, 2), res.aliquota_interna, round(res.icms_interno, 2),
+            round(res.antecipacao_devida, 2),
             _observacoes(item, res),
         ]
         for col, val in enumerate(valores, start=1):
@@ -102,8 +95,8 @@ def gerar_excel(
 
     total_row = row
     ws.cell(row=total_row, column=1, value=f"TOTAL — {len(linhas)} item(ns)").font = Font(bold=True)
-    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=24)
-    tot_cell = ws.cell(row=total_row, column=25, value=round(total_antecipacao, 2))
+    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=21)
+    tot_cell = ws.cell(row=total_row, column=22, value=round(total_antecipacao, 2))
     tot_cell.font = Font(bold=True)
     tot_cell.number_format = "#,##0.00"
 
