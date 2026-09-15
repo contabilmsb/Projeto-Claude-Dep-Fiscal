@@ -282,6 +282,73 @@ def _parse_cabecalho_v2(texto: str) -> dict:
     return h
 
 
+def _parse_cabecalho_v3(texto: str) -> dict:
+    """Formato mais recente do extrato, com "ADICAO : NNN NCM : X" na mesma
+    linha (em vez de linhas separadas como no formato v2) e rótulos de
+    totais do processo diferentes ("VALOR ICMS", "VALOR CIF REAIS",
+    "DATA EMBARQUE" sem o "DE")."""
+    h = {}
+
+    def get(padrao, alvo=texto, flags=0):
+        m = re.search(padrao, alvo, flags)
+        return m.group(1).strip() if m else None
+
+    h["taxa_dolar"] = get(r"TAXA DOLAR USD\s*:\s*([\d.,]+)")
+    h["taxa_siscomex"] = get(r"TAXA SISCOMEX\s*:\s*BRL\s*([\d.,]+)")
+    h["data_embarque"] = get(r"DATA EMBARQUE\s*:\s*([\d/]+)")
+    h["data_chegada"] = get(r"DATA CHEGADA\s*:\s*([\d/]+)")
+    h["fatura_comercial"] = get(r"FATURA COMERCIAL\s*:\s*(.+)")
+    h["processo_virtua"] = get(r"NOSSA REFERENCIA\s*:\s*(.+)")
+    h["processo_biomedical"] = get(r"SUA REFERENCIA\s*:\s*(.+)")
+
+    # Os campos de totais do processo aparecem uma vez antes da primeira
+    # adição — corta ali para não capturar os equivalentes por adição.
+    texto_processo = re.split(r"\n\s*ADICAO\s*:\s*\d+", texto)[0]
+
+    h["despesas_aduaneiras"] = get(r"DESPESAS ADUANEIRAS\s*:\s*BRL\s*([\d.,]+)", texto_processo)
+    h["icms_total"] = get(r"VALOR ICMS\s*:\s*BRL\s*([\d.,]+)", texto_processo)
+    h["valor_aduaneiro_brl"] = get(r"VALOR CIF REAIS\s*:\s*BRL\s*([\d.,]+)", texto_processo)
+    h["fob_usd"] = get(r"VALOR MLE DOLAR\s*:\s*([\d.,]+)", texto_processo)
+
+    # "Valor MLE"/"Valor Frete"/"Valor Seguro" (FOB, frete e seguro em R$) só
+    # aparecem por adição, não no total do processo — soma as adições.
+    for chave, rotulo in [("fob", "Valor MLE"), ("frete", "Valor Frete"), ("seguro", "Valor Seguro")]:
+        valores = [_to_float(v) for v in re.findall(rf"{rotulo}\s*:\s*BRL\s*([\d.,]+)", texto)]
+        if valores:
+            h[f"{chave}_brl"] = f"{sum(v for v in valores if v is not None):.2f}".replace(".", ",")
+
+    m = re.search(r"[A-Za-z].*?- ([A-Z]{2})\s+([\d]+,[\d]+)\s+Carga", texto)
+    if m:
+        h["peso_liquido_total_kg"] = m.group(2)
+    m = re.search(r"Conhecimento\s+\d+\s+([\d.,]+)", texto)
+    if m:
+        h["peso_bruto_total_kg"] = m.group(1)
+
+    adicoes = []
+    for m in re.finditer(
+        r"ADICAO\s*:\s*(\d+)\s*NCM\s*:\s*(\S+)\s*\n"
+        r"VALOR ADUANEIRO\s*:\s*BRL\s*[\d.,]+\s*\n"
+        r"(?:.*\n)*?"
+        r"Taxa Siscomex\s*:\s*BRL\s*([\d.,]+)\s*\n"
+        r"II\s*:\s*[\d,]+%\s*RED:\s*[\d,]+%\s*BRL\s*([\d.,]+)\s*\n"
+        r"IPI\s*:\s*[\d,]+%\s*RED:\s*[\d,]+%\s*BRL\s*([\d.,]+)\s*\n"
+        r"(?:.*\n)*?"
+        r"Base Calculo PIS/COFINS\s*:\s*BRL\s*([\d.,]+)\s*\n"
+        r"PIS\s*:\s*[\d,]+%\s*RED:\s*[\d,]+%\s*BRL\s*([\d.,]+)\s*\n"
+        r"COFINS\s*:\s*[\d,]+%\s*RED:\s*[\d,]+%\s*BRL\s*([\d.,]+)",
+        texto,
+    ):
+        adicoes.append({
+            "numero": m.group(1), "ncm": m.group(2),
+            "taxa_siscomex": _to_float(m.group(3)),
+            "ii_valor": _to_float(m.group(4)), "ipi_valor": _to_float(m.group(5)),
+            "base_pis_cofins": _to_float(m.group(6)),
+            "pis_valor": _to_float(m.group(7)), "cofins_valor": _to_float(m.group(8)),
+        })
+    h["adicoes"] = adicoes
+    return h
+
+
 def _parse_cabecalho(texto: str, itens: list[dict] | None = None) -> dict:
     h = {}
 
@@ -294,7 +361,9 @@ def _parse_cabecalho(texto: str, itens: list[dict] | None = None) -> dict:
         h["importador_cnpj"] = m.group(1)
         h["importador_nome"] = f"{m.group(2)} {m.group(3)}".strip()
 
-    if re.search(r"^ADICAO\s*:\s*\d+", texto, re.MULTILINE):
+    if re.search(r"^ADICAO\s*:\s*\d+\s+NCM\s*:", texto, re.MULTILINE):
+        h.update(_parse_cabecalho_v3(texto))
+    elif re.search(r"^ADICAO\s*:\s*\d+", texto, re.MULTILINE):
         h.update(_parse_cabecalho_v2(texto))
     else:
         h.update(_parse_cabecalho_v1(texto))
