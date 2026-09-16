@@ -60,7 +60,8 @@ def _extrai_numero_e_data(texto: str) -> tuple[str | None, str | None]:
     if not mv:
         return None, None
     numero = re.sub(r"\D", "", mv.group(1)).lstrip("0") or "0"
-    return numero, mv.group(2)
+    data_emissao = mv.group(2).split()[0]  # descarta a hora, mantém só dd/mm/aaaa
+    return numero, data_emissao
 
 
 def _valida_chave(digitos: str) -> bool:
