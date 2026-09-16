@@ -94,6 +94,8 @@ from src.utilidades.duimp.calculos import (
     calcular_data_vencimento as calcular_data_vencimento_duimp,
 )
 from src.utilidades.duimp.writer import gerar_excel as gerar_excel_duimp
+from src.utilidades.dacte.parser import extrair as extrair_dacte
+from src.utilidades.dacte.writer import gerar_excel as gerar_excel_dacte
 
 app = FastAPI(title="Apuração PIS/COFINS")
 
@@ -967,6 +969,45 @@ async def utilidades_duimp_processar(arquivo: UploadFile = File(...)):
                 "X-Duimp-Qtd-Itens": str(len(itens)),
                 "X-Duimp-Valor-Aduaneiro": f"{cabecalho.get('valor_aduaneiro_brl') or 0:.2f}",
                 "X-Duimp-Qtd-Avisos": str(len(avisos)),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/utilidades/dacte/processar", dependencies=[Depends(require_auth)])
+async def utilidades_dacte_processar(arquivos: list[UploadFile] = File(...)):
+    try:
+        linhas = []
+        avisos = []
+        for arquivo in arquivos:
+            conteudo = await arquivo.read()
+            try:
+                resultado = extrair_dacte(conteudo, arquivo.filename)
+            except Exception as e:
+                avisos.append(f"{arquivo.filename}: erro ao ler o PDF — {e}")
+                continue
+            avisos.extend(resultado.pop("avisos"))
+            linhas.append(resultado)
+
+        if not linhas:
+            raise HTTPException(status_code=422, detail="Nenhum DACTE válido encontrado nos arquivos enviados.")
+
+        excel_bytes = gerar_excel_dacte(linhas, avisos)
+        total_valor_a_receber = sum(l.get("valor_a_receber") or 0.0 for l in linhas)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"DACTE_{ts}.xlsx"
+
+        return StreamingResponse(
+            iter([excel_bytes]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Dacte-Qtd-Itens": str(len(linhas)),
+                "X-Dacte-Valor-Total": f"{total_valor_a_receber:.2f}",
+                "X-Dacte-Qtd-Avisos": str(len(avisos)),
             },
         )
     except HTTPException:

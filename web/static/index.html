@@ -1369,7 +1369,13 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     </h2>
     <p>Ferramentas de apoio</p>
   </div>
-  <div class="upload-body">
+
+  <div class="right-tabs" style="max-width:520px;">
+    <div class="rtab active" id="ut-tab-duimp" onclick="utSwitchTab('duimp')">Duimp</div>
+    <div class="rtab" id="ut-tab-dacte" onclick="utSwitchTab('dacte')">Dacte</div>
+  </div>
+
+  <div class="upload-body" id="ut-panel-duimp">
     <div class="upload-left">
       <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
         <div class="section-label">Duimp — Extrato para Excel</div>
@@ -1411,6 +1417,48 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         rateadas ficam destacadas em amarelo, com a metodologia explicada na aba Resumo.
       </p>
       <div id="ut-duimp-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+
+  <div class="upload-body" id="ut-panel-dacte" style="display:none;">
+    <div class="upload-left">
+      <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
+        <div class="section-label">Dacte — Extrato para Excel</div>
+        <p style="font-size:12px;color:var(--gray600);line-height:1.6;margin:0;">
+          Envie um ou mais DACTEs (Documento Auxiliar do CT-e) em PDF. O sistema lê o número do
+          CT-e, a data de emissão, a chave de acesso (44 dígitos, sem espaços ou pontuação), o
+          valor a receber (frete) e a alíquota de ICMS de cada documento, e gera uma planilha
+          consolidada — uma linha por DACTE.
+        </p>
+        <div class="form-group">
+          <label>Arquivos PDF (um ou mais) *</label>
+          <input type="file" id="ut-dacte-files" accept=".pdf" multiple onchange="utDacteAtualizaLista()">
+        </div>
+        <div id="ut-dacte-filelist" style="font-size:12px;color:var(--gray600);"></div>
+        <div class="error-msg" id="ut-dacte-error" style="display:none;"></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="utDacteProcessar()" id="ut-dacte-btn" style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Processar e Baixar Excel
+          </button>
+          <button class="btn btn-secondary" onclick="utDacteLimparArquivos()" style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Limpar Arquivos
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-right">
+      <h3>Como funciona</h3>
+      <p style="font-size:12px;color:var(--gray600);line-height:1.7;">
+        1. Selecione um ou mais PDFs de DACTE (com texto selecionável, não uma digitalização).<br>
+        2. O sistema lê o número, a data de emissão, a chave de acesso, o valor a receber e a
+        alíquota de ICMS de cada um.<br>
+        3. Nada é salvo no sistema — o resultado sai direto em um Excel para download, com uma
+        aba de avisos quando algum campo não for identificado em algum arquivo.
+      </p>
+      <div id="ut-dacte-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
 </div>
@@ -3710,6 +3758,16 @@ async function oaDirbiProcessar() {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// Utilidades — alternância de abas
+// ══════════════════════════════════════════════════════════════════
+function utSwitchTab(tab) {
+  document.getElementById('ut-tab-duimp').classList.toggle('active', tab === 'duimp');
+  document.getElementById('ut-tab-dacte').classList.toggle('active', tab === 'dacte');
+  document.getElementById('ut-panel-duimp').style.display = tab === 'duimp' ? 'grid' : 'none';
+  document.getElementById('ut-panel-dacte').style.display = tab === 'dacte' ? 'grid' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════
 // Utilidades — Duimp
 // ══════════════════════════════════════════════════════════════════
 const utDuimpFiles = {};
@@ -3810,6 +3868,96 @@ async function utDuimpProcessar() {
     errEl.style.display = 'block';
   } finally {
     btn.disabled = !utDuimpFiles.arquivo;
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Utilidades — Dacte
+// ══════════════════════════════════════════════════════════════════
+function utDacteAtualizaLista() {
+  const files = document.getElementById('ut-dacte-files').files;
+  const el = document.getElementById('ut-dacte-filelist');
+  el.textContent = files.length
+    ? `${files.length} arquivo(s) selecionado(s): ${[...files].map(f => f.name).join(', ')}`
+    : '';
+}
+
+function utDacteLimparArquivos() {
+  document.getElementById('ut-dacte-files').value = '';
+  document.getElementById('ut-dacte-filelist').textContent = '';
+  document.getElementById('ut-dacte-error').style.display = 'none';
+  document.getElementById('ut-dacte-resumo').innerHTML = '';
+  showToast('✓ Arquivos limpos — selecione os arquivos novamente.', 'ok', 3000);
+}
+
+async function utDacteProcessar() {
+  const errEl = document.getElementById('ut-dacte-error');
+  errEl.style.display = 'none';
+
+  const files = document.getElementById('ut-dacte-files').files;
+  if (!files.length) {
+    errEl.textContent = 'Selecione ao menos um PDF de DACTE.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('ut-dacte-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processando…';
+
+  const fd = new FormData();
+  [...files].forEach(f => fd.append('arquivos', f));
+
+  try {
+    const res = await fetch('/utilidades/dacte/processar', {
+      method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() },
+    });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      throw new Error(data?.detail || 'Erro ao processar os arquivos.');
+    }
+
+    const qtd = res.headers.get('X-Dacte-Qtd-Itens') || '0';
+    const valorTotal = parseFloat(res.headers.get('X-Dacte-Valor-Total') || '0');
+    const qtdAvisos = parseInt(res.headers.get('X-Dacte-Qtd-Avisos') || '0', 10);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : 'dacte.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    document.getElementById('ut-dacte-resumo').innerHTML = `
+      <div class="card">
+        <div class="card-label">DACTEs processados</div>
+        <div class="card-value">${qtd}</div>
+      </div>
+      <div class="card accent-red">
+        <div class="card-label">Total a Receber</div>
+        <div class="card-value">${brl(valorTotal)}</div>
+      </div>
+      ${qtdAvisos > 0 ? `
+        <div class="alert-box warn">
+          <div class="alert-icon">⚠️</div>
+          <div>
+            <div class="alert-title">Avisos</div>
+            <div class="alert-desc">${qtdAvisos} aviso(s) — confira a aba "Avisos" no Excel gerado.</div>
+          </div>
+        </div>` : ''}
+    `;
+    showToast('✓ Excel gerado e baixado com sucesso', 'ok', 4000);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
     btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
   }
 }
