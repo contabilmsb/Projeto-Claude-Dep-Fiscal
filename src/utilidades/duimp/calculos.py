@@ -59,38 +59,95 @@ def aplicar_rateio_peso_bruto(cabecalho: dict, itens: list[dict]) -> list[str]:
 
 
 def inferir_numero_adicao(cabecalho: dict, itens: list[dict]) -> list[str]:
-    """Adiciona a cada item (in place) o número da adição inferido. Retorna avisos."""
+    """
+    Adiciona a cada item (in place) o número da adição inferido. Retorna avisos.
+
+    A inferência usa o NCM como sinal primário: cada item é comparado ao
+    NCM de cada adição do processo (mesmo campo, presente nos dois). Quando
+    o NCM do item corresponde a uma única adição, a associação é direta.
+    Quando corresponde a mais de uma adição (mesmo NCM declarado em
+    adições diferentes — comum quando fabricantes/fornecedores diferentes
+    do mesmo produto foram agrupados em adições separadas), o desempate
+    usa o fabricante/produtor do item, na ordem em que aparecem no
+    processo, associado à ordem das adições daquele NCM.
+    """
     avisos = []
     adicoes = cabecalho.get("adicoes") or []
-
-    grupos_ordem = []
     for it in itens:
-        fab = it.get("fabricante_legal")
-        if fab not in grupos_ordem:
-            grupos_ordem.append(fab)
+        it["numero_adicao"] = None
 
-    if not adicoes or len(grupos_ordem) != len(adicoes):
+    if not adicoes:
         avisos.append(
-            "Não foi possível inferir com segurança o número da adição de cada item (a quantidade "
-            "de fabricantes distintos não corresponde à quantidade de adições do processo) — a "
-            "coluna \"Número da Adição\" ficou em branco."
+            "A DI não traz o resumo por adição — a coluna \"Número da Adição\" ficou em branco."
         )
-        for it in itens:
-            it["numero_adicao"] = None
         return avisos
 
-    mapa_fabricante_para_adicao = {
-        fab: adicoes[i]["numero"] for i, fab in enumerate(grupos_ordem)
-    }
-    for it in itens:
-        it["numero_adicao"] = mapa_fabricante_para_adicao.get(it.get("fabricante_legal"))
+    def normaliza_ncm(ncm):
+        # Extrai só os 8 dígitos do código NCM do começo do campo,
+        # tolerando qualquer pontuação entre eles ("90183929",
+        # "9018.3929" ou "9018.39.29" — os três formatos já observados
+        # em extratos reais). O campo do item costuma trazer a
+        # descrição da posição junto (ex.: "8466.9100 - -- PARA
+        # MÁQUINAS DA POSIÇÃO 84.64"), que tem outros números e não
+        # pode ser incluída na comparação — por isso o limite de
+        # exatamente 8 dígitos, parando aí.
+        m = re.match(r"\s*((?:\d\.?){8})", ncm or "")
+        return re.sub(r"\D", "", m.group(1)) if m else ""
 
-    avisos.append(
-        "A coluna \"Número da Adição\" é uma INFERÊNCIA: a DUIMP não declara essa informação por "
-        "item, apenas o resumo agregado por adição. Os itens foram agrupados pelo fabricante/produtor "
-        "e associados às adições na mesma ordem em que aparecem no processo — confira contra a DI "
-        "antes de usar para fins fiscais."
-    )
+    adicoes_por_ncm: dict = {}
+    for a in adicoes:
+        adicoes_por_ncm.setdefault(normaliza_ncm(a.get("ncm")), []).append(a)
+
+    itens_por_ncm: dict = {}
+    for it in itens:
+        itens_por_ncm.setdefault(normaliza_ncm(it.get("ncm")), []).append(it)
+
+    algum_ambiguo_resolvido = False
+    algum_nao_resolvido = False
+
+    for ncm, grupo_itens in itens_por_ncm.items():
+        candidatas = adicoes_por_ncm.get(ncm) or []
+
+        if len(candidatas) == 1:
+            for it in grupo_itens:
+                it["numero_adicao"] = candidatas[0]["numero"]
+            continue
+
+        if not candidatas:
+            algum_nao_resolvido = True
+            continue
+
+        # NCM presente em mais de uma adição — desempata por
+        # fabricante/produtor, na ordem em que os itens aparecem.
+        fabricantes_ordem = []
+        for it in grupo_itens:
+            fab = it.get("fabricante_legal")
+            if fab and fab not in fabricantes_ordem:
+                fabricantes_ordem.append(fab)
+
+        if fabricantes_ordem and len(fabricantes_ordem) == len(candidatas):
+            mapa = {fab: candidatas[i]["numero"] for i, fab in enumerate(fabricantes_ordem)}
+            for it in grupo_itens:
+                it["numero_adicao"] = mapa.get(it.get("fabricante_legal"))
+            algum_ambiguo_resolvido = True
+        else:
+            algum_nao_resolvido = True
+
+    if any(it.get("numero_adicao") for it in itens):
+        avisos.append(
+            "A coluna \"Número da Adição\" é uma INFERÊNCIA: a DUIMP não declara essa informação por "
+            "item, apenas o resumo agregado por adição. A associação usa o NCM do item comparado ao "
+            "NCM de cada adição" + (
+                ", desempatando pelo fabricante/produtor (na ordem em que aparecem) quando o mesmo "
+                "NCM aparece em mais de uma adição" if algum_ambiguo_resolvido else ""
+            ) + " — confira contra a DI antes de usar para fins fiscais."
+        )
+    if algum_nao_resolvido:
+        avisos.append(
+            "Não foi possível inferir com segurança o número da adição de um ou mais itens (NCM sem "
+            "correspondência em nenhuma adição, ou ambiguidade que o fabricante/produtor não resolveu) "
+            "— a coluna \"Número da Adição\" ficou em branco para esses itens."
+        )
     return avisos
 
 

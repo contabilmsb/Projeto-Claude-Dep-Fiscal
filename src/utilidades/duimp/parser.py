@@ -96,6 +96,16 @@ def _parse_item(numero_item: int, texto: str) -> dict:
     d["ncm"] = _find_value(texto, "NCM:")
     d["part_number"] = _find_value(texto, "Part number")
     d["fabricante_legal"] = _find_value(texto, "Fabricante Legal")
+    if not d["fabricante_legal"]:
+        # "Fabricante Legal" só aparece quando declarado separadamente
+        # (produtos sujeitos a fiscalização sanitária/ANVISA) — quando
+        # ausente, usa o nome já disponível em "Código do
+        # Fabricante/Produtor: Versão:" (mesmo padrão do "Código do
+        # Exportador Estrangeiro", abaixo).
+        v = _find_value(texto, "Código do Fabricante/Produtor: Versão:")
+        if v:
+            m = re.match(r"^(\S+) - (.+?)\s+\d+(?:\.\d+)?$", v)
+            d["fabricante_legal"] = m.group(2) if m else v
     d["numero_snvs"] = _find_value(texto, "Número de regularização no SNVS")
     d["descricao_complementar"] = _find_value(texto, "Descrição complementar da mercadoria:", multiline=True)
     d["numero_lote"] = _find_value(texto, "Número do Lote")
