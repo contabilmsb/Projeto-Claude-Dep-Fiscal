@@ -172,6 +172,27 @@ def _get_supabase():
 def _use_supabase() -> bool:
     return bool(SUPABASE_URL and SUPABASE_KEY)
 
+def _supabase_rpc(nome: str, params: dict):
+    """
+    Chama uma função RPC do Supabase, recriando o cliente e tentando
+    novamente uma vez se a primeira tentativa falhar.
+
+    Em ambiente serverless (Vercel), o processo pode ser "congelado" entre
+    invocações e reativado depois — o cliente Supabase cacheado em
+    `_supabase_client` mantém conexões HTTP abertas cujos sockets podem não
+    sobreviver a esse ciclo, causando erros de baixo nível como
+    "[Errno 16] Device or resource busy" numa tentativa isolada, mas que
+    já não ocorrem com um cliente novo.
+    """
+    global _supabase_client
+    try:
+        sb = _get_supabase()
+        return sb.rpc(nome, params).execute()
+    except Exception:
+        _supabase_client = None
+        sb = _get_supabase()
+        return sb.rpc(nome, params).execute()
+
 # ── Fallback em memória (desenvolvimento local) ────────────────────────────────
 _sessions: dict[str, dict] = {}
 
@@ -299,15 +320,14 @@ def _session_get(session_id: str) -> dict | None:
 async def login(username: str = Form(...), password: str = Form(...)):
     # Valida via Supabase (tabela users com bcrypt)
     if _use_supabase():
-        sb = _get_supabase()
         try:
-            result = sb.rpc("verify_user", {"p_username": username, "p_password": password}).execute()
+            result = _supabase_rpc("verify_user", {"p_username": username, "p_password": password})
             if not result.data:
                 raise HTTPException(status_code=401, detail="Usuário ou senha inválidos.")
             user = result.data[0]
             # Atualiza last_login (ignora erro se função não existir)
             try:
-                sb.rpc("touch_last_login", {"p_username": username}).execute()
+                _supabase_rpc("touch_last_login", {"p_username": username})
             except Exception:
                 pass
             return {"token": _make_token(username), "username": user.get("full_name") or username}
