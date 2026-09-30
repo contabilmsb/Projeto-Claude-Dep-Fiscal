@@ -63,7 +63,14 @@ def _find_value(text: str, label: str, multiline: bool = False):
         if l.strip() != label:
             continue
         if not multiline:
-            return linhas[i + 1].strip() if i + 1 < len(linhas) else None
+            # Pula linhas em branco antes do valor — podem aparecer quando o
+            # rótulo cai no fim de uma página e o valor só começa na
+            # próxima (a limpeza de cabeçalho/rodapé por página às vezes
+            # deixa uma linha vazia no lugar).
+            j = i + 1
+            while j < len(linhas) and not linhas[j].strip():
+                j += 1
+            return linhas[j].strip() if j < len(linhas) else None
         partes = []
         j = i + 1
         while j < len(linhas):
