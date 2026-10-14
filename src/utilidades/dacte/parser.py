@@ -74,8 +74,11 @@ def _extrai_chave_acesso(texto: str) -> str | None:
     pelo dígito do modelo (57) na posição correta dentro da chave —
     evita confundir com a chave de uma NF-e referenciada (modelo 55)."""
     # Formato "oficial": 11 grupos de 4 dígitos separados por espaço.
-    for m in re.finditer(r"(?:\d{4}[ .]){10}\d{4}", texto):
-        digitos = re.sub(r"\D", "", m.group(0))
+    # Lookahead (busca sobreposta) + limite de dígitos: números vizinhos na
+    # mesma linha (ex.: final da inscrição estadual colado antes da chave)
+    # não podem "consumir" o início da chave real.
+    for m in re.finditer(r"(?<!\d)(?=((?:\d{4}[ .]){10}\d{4})(?!\d))", texto):
+        digitos = re.sub(r"\D", "", m.group(1))
         if _valida_chave(digitos):
             return digitos
 
