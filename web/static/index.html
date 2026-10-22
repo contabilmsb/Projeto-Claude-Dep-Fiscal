@@ -1373,6 +1373,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
   <div class="right-tabs" style="max-width:520px;">
     <div class="rtab active" id="ut-tab-duimp" onclick="utSwitchTab('duimp')">Duimp</div>
     <div class="rtab" id="ut-tab-dacte" onclick="utSwitchTab('dacte')">Dacte</div>
+    <div class="rtab" id="ut-tab-xmlnfe" onclick="utSwitchTab('xmlnfe')">XML NFE</div>
   </div>
 
   <div class="upload-body" id="ut-panel-duimp">
@@ -1459,6 +1460,47 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
         aba de avisos quando algum campo não for identificado em algum arquivo.
       </p>
       <div id="ut-dacte-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+
+  <div class="upload-body" id="ut-panel-xmlnfe" style="display:none;">
+    <div class="upload-left">
+      <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
+        <div class="section-label">XML NFE — Extrato para Excel</div>
+        <p style="font-size:12px;color:var(--gray600);line-height:1.6;margin:0;">
+          Envie um ou mais XMLs de NF-e. O sistema lê, de cada nota, a data de emissão, o CNPJ do
+          emitente e do destinatário, o CFOP, o valor total da nota, a base de cálculo do ICMS e o
+          valor do ICMS (totais da nota), e gera uma planilha consolidada — uma linha por NF-e.
+          Quando a nota tem itens com CFOPs diferentes, todos aparecem na mesma célula.
+        </p>
+        <div class="form-group">
+          <label>Arquivos XML (um ou mais) *</label>
+          <input type="file" id="ut-xmlnfe-files" accept=".xml" multiple onchange="utXmlNfeAtualizaLista()">
+        </div>
+        <div id="ut-xmlnfe-filelist" style="font-size:12px;color:var(--gray600);"></div>
+        <div class="error-msg" id="ut-xmlnfe-error" style="display:none;"></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="utXmlNfeProcessar()" id="ut-xmlnfe-btn" style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Processar e Baixar Excel
+          </button>
+          <button class="btn btn-secondary" onclick="utXmlNfeLimparArquivos()" style="width:auto;padding:10px 24px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Limpar Arquivos
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-right">
+      <h3>Como funciona</h3>
+      <p style="font-size:12px;color:var(--gray600);line-height:1.7;">
+        1. Selecione um ou mais XMLs de NF-e (pode selecionar vários de uma vez).<br>
+        2. O sistema lê os dados de cada nota e monta uma linha por NF-e.<br>
+        3. Nada é salvo no sistema — o resultado sai direto em um Excel para download, com uma
+        aba de avisos quando algum campo não for identificado ou algum arquivo não puder ser lido.
+      </p>
+      <div id="ut-xmlnfe-resumo" style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
 </div>
@@ -3765,6 +3807,8 @@ function utSwitchTab(tab) {
   document.getElementById('ut-tab-dacte').classList.toggle('active', tab === 'dacte');
   document.getElementById('ut-panel-duimp').style.display = tab === 'duimp' ? 'grid' : 'none';
   document.getElementById('ut-panel-dacte').style.display = tab === 'dacte' ? 'grid' : 'none';
+  document.getElementById('ut-tab-xmlnfe').classList.toggle('active', tab === 'xmlnfe');
+  document.getElementById('ut-panel-xmlnfe').style.display = tab === 'xmlnfe' ? 'grid' : 'none';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -3942,6 +3986,99 @@ async function utDacteProcessar() {
       <div class="card accent-red">
         <div class="card-label">Total a Receber</div>
         <div class="card-value">${brl(valorTotal)}</div>
+      </div>
+      ${qtdAvisos > 0 ? `
+        <div class="alert-box warn">
+          <div class="alert-icon">⚠️</div>
+          <div>
+            <div class="alert-title">Avisos</div>
+            <div class="alert-desc">${qtdAvisos} aviso(s) — confira a aba "Avisos" no Excel gerado.</div>
+          </div>
+        </div>` : ''}
+    `;
+    showToast('✓ Excel gerado e baixado com sucesso', 'ok', 4000);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Processar e Baixar Excel';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Utilidades — XML NFE
+// ══════════════════════════════════════════════════════════════════
+function utXmlNfeAtualizaLista() {
+  const files = document.getElementById('ut-xmlnfe-files').files;
+  const el = document.getElementById('ut-xmlnfe-filelist');
+  el.textContent = files.length ? `${files.length} arquivo(s) selecionado(s)` : '';
+}
+
+function utXmlNfeLimparArquivos() {
+  document.getElementById('ut-xmlnfe-files').value = '';
+  document.getElementById('ut-xmlnfe-filelist').textContent = '';
+  document.getElementById('ut-xmlnfe-error').style.display = 'none';
+  document.getElementById('ut-xmlnfe-resumo').innerHTML = '';
+  showToast('✓ Arquivos limpos — selecione os arquivos novamente.', 'ok', 3000);
+}
+
+async function utXmlNfeProcessar() {
+  const errEl = document.getElementById('ut-xmlnfe-error');
+  errEl.style.display = 'none';
+
+  const files = document.getElementById('ut-xmlnfe-files').files;
+  if (!files.length) {
+    errEl.textContent = 'Selecione ao menos um XML de NF-e.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('ut-xmlnfe-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processando…';
+
+  const fd = new FormData();
+  [...files].forEach(f => fd.append('arquivos', f));
+
+  try {
+    const res = await fetch('/utilidades/xml-nfe/processar', {
+      method: 'POST', body: fd, headers: { 'X-Auth-Token': _getToken() },
+    });
+    if (!res.ok) {
+      const data = await _safeJson(res);
+      throw new Error(data?.detail || 'Erro ao processar os arquivos.');
+    }
+
+    const qtd = res.headers.get('X-XmlNfe-Qtd-Itens') || '0';
+    const valorTotal = parseFloat(res.headers.get('X-XmlNfe-Valor-Total') || '0');
+    const valorIcms = parseFloat(res.headers.get('X-XmlNfe-Valor-Icms') || '0');
+    const qtdAvisos = parseInt(res.headers.get('X-XmlNfe-Qtd-Avisos') || '0', 10);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : 'xml_nfe.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    document.getElementById('ut-xmlnfe-resumo').innerHTML = `
+      <div class="card">
+        <div class="card-label">NF-e processadas</div>
+        <div class="card-value">${qtd}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Valor Total das Notas</div>
+        <div class="card-value">${brl(valorTotal)}</div>
+      </div>
+      <div class="card accent-red">
+        <div class="card-label">Valor ICMS</div>
+        <div class="card-value">${brl(valorIcms)}</div>
       </div>
       ${qtdAvisos > 0 ? `
         <div class="alert-box warn">

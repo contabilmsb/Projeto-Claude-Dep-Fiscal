@@ -96,6 +96,8 @@ from src.utilidades.duimp.calculos import (
 from src.utilidades.duimp.writer import gerar_excel as gerar_excel_duimp
 from src.utilidades.dacte.parser import extrair as extrair_dacte
 from src.utilidades.dacte.writer import gerar_excel as gerar_excel_dacte
+from src.utilidades.xml_nfe.parser import extrair as extrair_xml_nfe
+from src.utilidades.xml_nfe.writer import gerar_excel as gerar_excel_xml_nfe
 
 app = FastAPI(title="Apuração PIS/COFINS")
 
@@ -1028,6 +1030,45 @@ async def utilidades_dacte_processar(arquivos: list[UploadFile] = File(...)):
                 "X-Dacte-Qtd-Itens": str(len(linhas)),
                 "X-Dacte-Valor-Total": f"{total_valor_a_receber:.2f}",
                 "X-Dacte-Qtd-Avisos": str(len(avisos)),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/utilidades/xml-nfe/processar", dependencies=[Depends(require_auth)])
+async def utilidades_xml_nfe_processar(arquivos: list[UploadFile] = File(...)):
+    try:
+        linhas = []
+        avisos = []
+        for arquivo in arquivos:
+            conteudo = await arquivo.read()
+            try:
+                resultado = extrair_xml_nfe(conteudo, arquivo.filename)
+            except Exception as e:
+                avisos.append(f"{arquivo.filename}: erro ao ler o XML — {e}")
+                continue
+            avisos.extend(resultado.pop("avisos"))
+            linhas.append(resultado)
+
+        if not linhas:
+            raise HTTPException(status_code=422, detail="Nenhum XML de NF-e válido encontrado nos arquivos enviados.")
+
+        excel_bytes = gerar_excel_xml_nfe(linhas, avisos)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"XML_NFE_{ts}.xlsx"
+
+        return StreamingResponse(
+            iter([excel_bytes]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-XmlNfe-Qtd-Itens": str(len(linhas)),
+                "X-XmlNfe-Valor-Total": f"{sum(l.get('valor_total_nota') or 0.0 for l in linhas):.2f}",
+                "X-XmlNfe-Valor-Icms": f"{sum(l.get('valor_icms') or 0.0 for l in linhas):.2f}",
+                "X-XmlNfe-Qtd-Avisos": str(len(avisos)),
             },
         )
     except HTTPException:
