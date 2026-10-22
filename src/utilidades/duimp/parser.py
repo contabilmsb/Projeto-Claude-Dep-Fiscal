@@ -378,7 +378,9 @@ def _parse_cabecalho(texto: str, itens: list[dict] | None = None) -> dict:
         h["importador_cnpj"] = m.group(1)
         h["importador_nome"] = f"{m.group(2)} {m.group(3)}".strip()
 
-    if re.search(r"^ADICAO\s*:\s*\d+\s+NCM\s*:", texto, re.MULTILINE):
+    # v3: "ADICAO : NNN NCM : X" na MESMA linha (só espaço/tab — `\s` atravessaria
+    # a quebra de linha e confundiria com o v2, que traz o NCM na linha seguinte).
+    if re.search(r"^ADICAO[ \t]*:[ \t]*\d+[ \t]+NCM[ \t]*:", texto, re.MULTILINE):
         h.update(_parse_cabecalho_v3(texto))
     elif re.search(r"^ADICAO\s*:\s*\d+", texto, re.MULTILINE):
         h.update(_parse_cabecalho_v2(texto))

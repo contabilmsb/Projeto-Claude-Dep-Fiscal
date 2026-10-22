@@ -185,6 +185,29 @@ def aplicar_rateio_siscomex(cabecalho: dict, itens: list[dict]) -> list[str]:
                 "rateado entre as adições proporcionalmente à Base de Cálculo PIS/COFINS de cada uma."
             )
 
+    # Confere a soma declarada por adição contra o total do processo — o
+    # extrato às vezes traz uma adição com valores repetidos de outra, o que
+    # faz a soma das adições não fechar com o total.
+    soma_adicoes = sum(a.get("taxa_siscomex") or 0 for a in adicoes)
+    if abs(soma_adicoes - taxa_siscomex_total) > 0.05:
+        duplicadas = []
+        vistos: dict = {}
+        for a in adicoes:
+            chave = (a.get("base_pis_cofins"), a.get("taxa_siscomex"), a.get("pis_valor"), a.get("cofins_valor"))
+            if chave in vistos:
+                duplicadas.append(f"{vistos[chave]} e {a['numero']}")
+            else:
+                vistos[chave] = a["numero"]
+        detalhe = (
+            f" As adições {', '.join(duplicadas)} trazem valores idênticos no extrato — possível "
+            "repetição de dados na DUIMP." if duplicadas else ""
+        )
+        avisos.append(
+            f"A soma da Taxa Siscomex declarada por adição (R$ {soma_adicoes:,.2f}) não fecha com o "
+            f"total do processo (R$ {taxa_siscomex_total:,.2f}); o rateio por item usa o valor "
+            f"declarado em cada adição.{detalhe} Confira contra a DUIMP."
+        )
+
     mapa_adicao = {a["numero"]: a for a in adicoes}
 
     por_adicao: dict = {}
