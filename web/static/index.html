@@ -1426,10 +1426,11 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
       <div style="background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;">
         <div class="section-label">Dacte — Extrato para Excel</div>
         <p style="font-size:12px;color:var(--gray600);line-height:1.6;margin:0;">
-          Envie um ou mais DACTEs (Documento Auxiliar do CT-e) em PDF. O sistema lê o número do
-          CT-e, a data de emissão, a chave de acesso (44 dígitos, sem espaços ou pontuação), o
-          valor a receber (frete) e a alíquota de ICMS de cada documento, e gera uma planilha
-          consolidada — uma linha por DACTE.
+          Envie um ou mais DACTEs (Documento Auxiliar do CT-e) em PDF — um mesmo PDF pode trazer
+          vários DACTEs (por exemplo, o arquivo da fatura da transportadora), e cada um vira uma
+          linha. O sistema lê o número do CT-e, a data de emissão, a chave de acesso (44 dígitos,
+          sem espaços ou pontuação), o valor a receber (frete) e a alíquota de ICMS. Se o PDF
+          trouxer a fatura, a quantidade de remessas e o total são conferidos com o extraído.
         </p>
         <div class="form-group">
           <label>Arquivos PDF (um ou mais) *</label>
@@ -1453,7 +1454,7 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
     <div class="upload-right">
       <h3>Como funciona</h3>
       <p style="font-size:12px;color:var(--gray600);line-height:1.7;">
-        1. Selecione um ou mais PDFs de DACTE (com texto selecionável, não uma digitalização).<br>
+        1. Selecione um ou mais PDFs de DACTE (com texto selecionável, não uma digitalização) — cada PDF pode ter vários DACTEs.<br>
         2. O sistema lê o número, a data de emissão, a chave de acesso, o valor a receber e a
         alíquota de ICMS de cada um.<br>
         3. Nada é salvo no sistema — o resultado sai direto em um Excel para download, com uma

@@ -23,6 +23,7 @@ praticamente universais por seguirem o leiaute nacional do CT-e:
     Valor do ICMS e, opcionalmente, % de redução da BC, nessa ordem.
 """
 
+import io
 import re
 
 import pdfplumber
@@ -106,19 +107,102 @@ def _extrai_aliquota_icms(texto: str) -> float | None:
     """A linha de tributação do ICMS começa com um código de 2 dígitos
     (ex.: "00 - Tributação normal") seguido de Base de Cálculo, Alíquota,
     Valor do ICMS e, opcionalmente, % de redução — nessa ordem fixa."""
+    # Só olha a partir do bloco do imposto, para não confundir com outras
+    # linhas do documento que também comecem com "NN - ".
+    i = texto.find("INFORMAÇÕES RELATIVAS AO IMPOSTO")
+    bloco = texto[i:] if i >= 0 else texto
     m = re.search(
         r"^\d{2}\s*-\s*.*?\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)(?:\s+([\d.,]+))?\s*$",
-        texto, re.MULTILINE,
+        bloco, re.MULTILINE,
     )
-    return _to_float(m.group(2)) if m else None
+    if m:
+        return _to_float(m.group(2))
+    # Situações sem ICMS destacado (40 isenção, 41 não tributada, 51
+    # diferimento) vêm sem coluna de alíquota — o ICMS é zero.
+    if re.search(r"^(?:40|41|51)\s*-", bloco, re.MULTILINE):
+        return 0.0
+    return None
 
 
-def extrair(conteudo_pdf: bytes, nome_arquivo: str) -> dict:
-    """Lê um DACTE em PDF e retorna os campos extraídos + avisos para os
-    campos que não foram encontrados."""
-    with pdfplumber.open(__import__("io").BytesIO(conteudo_pdf)) as pdf:
-        texto = "\n".join(p.extract_text() or "" for p in pdf.pages)
+def _eh_pagina_dacte(texto_pagina: str) -> bool:
+    return "VALOR A RECEBER" in texto_pagina and bool(
+        re.search(r"MODELO\s+S[ÉE]RIE\s+N[ÚU]MERO", texto_pagina)
+    )
 
+
+def _eh_pagina_fatura(texto_pagina: str) -> bool:
+    return "Qtd. Remessas" in texto_pagina or "Dados do sacado" in texto_pagina
+
+
+def _brl(v: float) -> str:
+    return f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _confere_fatura(texto_fatura: str, linhas: list[dict], nome_arquivo: str) -> list[str]:
+    """Quando o PDF traz a fatura da transportadora junto com os DACTEs, confere
+    a quantidade de remessas e o valor total da fatura com o que foi extraído."""
+    m = re.search(
+        r"Qtd\. Remessas\s+(\d+)\s+Totais\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)", texto_fatura
+    )
+    if not m:
+        return []
+    qtd_fatura, total_fatura = int(m.group(1)), _to_float(m.group(4))
+    total_extraido = round(sum(l.get("valor_a_receber") or 0.0 for l in linhas), 2)
+    avisos = []
+    if qtd_fatura != len(linhas):
+        avisos.append(
+            f"{nome_arquivo}: a fatura informa {qtd_fatura} remessa(s), mas foram encontrados "
+            f"{len(linhas)} DACTE(s) no arquivo — confira se alguma página está faltando."
+        )
+    if total_fatura is not None and abs(total_fatura - total_extraido) > 0.01:
+        avisos.append(
+            f"{nome_arquivo}: o total da fatura (R$ {_brl(total_fatura)}) não fecha com a soma dos "
+            f"valores a receber extraídos (R$ {_brl(total_extraido)})."
+        )
+    return avisos
+
+
+def extrair_todos(conteudo_pdf: bytes, nome_arquivo: str) -> tuple[list[dict], list[str]]:
+    """
+    Lê um PDF com um ou vários DACTEs e retorna (lista de DACTEs extraídos,
+    avisos gerais do arquivo).
+
+    Um PDF pode trazer vários DACTEs em sequência (um por página, ou mais) e,
+    antes deles, a fatura da transportadora. Cada página que parece o início
+    de um DACTE abre um novo documento; páginas seguintes sem esse início
+    (continuação) são juntadas ao documento anterior; páginas de fatura são
+    ignoradas na extração e usadas só para conferir quantidade e total.
+    """
+    with pdfplumber.open(io.BytesIO(conteudo_pdf)) as pdf:
+        paginas = [p.extract_text() or "" for p in pdf.pages]
+
+    grupos: list[dict] = []  # {"pagina": n, "textos": [..]}
+    textos_fatura: list[str] = []
+    for n, texto in enumerate(paginas, start=1):
+        if _eh_pagina_dacte(texto):
+            grupos.append({"pagina": n, "textos": [texto]})
+        elif _eh_pagina_fatura(texto):
+            textos_fatura.append(texto)
+        elif grupos:
+            grupos[-1]["textos"].append(texto)
+
+    if not grupos:  # nenhuma página reconhecida: tenta o arquivo todo como um documento
+        grupos = [{"pagina": 1, "textos": paginas}]
+
+    varios = len(grupos) > 1
+    linhas = [
+        _extrai_documento(
+            "\n".join(g["textos"]),
+            f"{nome_arquivo} (p. {g['pagina']})" if varios else nome_arquivo,
+        )
+        for g in grupos
+    ]
+    avisos_gerais = _confere_fatura("\n".join(textos_fatura), linhas, nome_arquivo) if textos_fatura else []
+    return linhas, avisos_gerais
+
+
+def _extrai_documento(texto: str, nome_arquivo: str) -> dict:
+    """Extrai os campos de um único DACTE a partir do texto dele."""
     numero_cte, data_emissao = _extrai_numero_e_data(texto)
     chave_acesso = _extrai_chave_acesso(texto)
     valor_a_receber = _extrai_valor_a_receber(texto)

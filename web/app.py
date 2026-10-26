@@ -94,7 +94,7 @@ from src.utilidades.duimp.calculos import (
     calcular_data_vencimento as calcular_data_vencimento_duimp,
 )
 from src.utilidades.duimp.writer import gerar_excel as gerar_excel_duimp
-from src.utilidades.dacte.parser import extrair as extrair_dacte
+from src.utilidades.dacte.parser import extrair_todos as extrair_todos_dacte
 from src.utilidades.dacte.writer import gerar_excel as gerar_excel_dacte
 from src.utilidades.xml_nfe.parser import extrair as extrair_xml_nfe
 from src.utilidades.xml_nfe.writer import gerar_excel as gerar_excel_xml_nfe
@@ -1007,12 +1007,14 @@ async def utilidades_dacte_processar(arquivos: list[UploadFile] = File(...)):
         for arquivo in arquivos:
             conteudo = await arquivo.read()
             try:
-                resultado = extrair_dacte(conteudo, arquivo.filename)
+                docs, avisos_gerais = extrair_todos_dacte(conteudo, arquivo.filename)
             except Exception as e:
                 avisos.append(f"{arquivo.filename}: erro ao ler o PDF — {e}")
                 continue
-            avisos.extend(resultado.pop("avisos"))
-            linhas.append(resultado)
+            avisos.extend(avisos_gerais)
+            for doc in docs:
+                avisos.extend(doc.pop("avisos"))
+                linhas.append(doc)
 
         if not linhas:
             raise HTTPException(status_code=422, detail="Nenhum DACTE válido encontrado nos arquivos enviados.")
