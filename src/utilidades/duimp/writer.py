@@ -78,8 +78,14 @@ def _cabecalho_tabela(ws, row, colunas_titulos, larguras=None):
             ws.column_dimensions[get_column_letter(col_idx)].width = larguras[col_idx - 1]
 
 
-def _gerar_aba_itens(ws, itens: list[dict]) -> None:
-    for col_idx, (_, titulo, largura, _, fill) in enumerate(COLUNAS_ITENS, start=1):
+COLUNA_DUIMP = ("duimp_numero", "DUIMP", 22, None, None)
+
+
+def _gerar_aba_itens(ws, itens: list[dict], com_duimp: bool = False) -> None:
+    """`com_duimp` acrescenta a coluna "DUIMP" no início (usado quando há mais
+    de uma DUIMP no mesmo Excel; cada item precisa trazer `duimp_numero`)."""
+    colunas = ([COLUNA_DUIMP] if com_duimp else []) + COLUNAS_ITENS
+    for col_idx, (_, titulo, largura, _, fill) in enumerate(colunas, start=1):
         cell = ws.cell(row=1, column=col_idx, value=titulo)
         cell.font = HEADER_FONT
         cell.fill = fill or HEADER_FILL
@@ -89,7 +95,7 @@ def _gerar_aba_itens(ws, itens: list[dict]) -> None:
 
     row_idx = 2
     for item in itens:
-        for col_idx, (chave, _, _, formato, _) in enumerate(COLUNAS_ITENS, start=1):
+        for col_idx, (chave, _, _, formato, _) in enumerate(colunas, start=1):
             valor = item.get(chave)
             cell = ws.cell(row=row_idx, column=col_idx, value=valor)
             if formato:
@@ -97,9 +103,9 @@ def _gerar_aba_itens(ws, itens: list[dict]) -> None:
         row_idx += 1
 
     total_row = row_idx
-    idx_por_chave = {chave: i + 1 for i, (chave, *_r) in enumerate(COLUNAS_ITENS)}
+    idx_por_chave = {chave: i + 1 for i, (chave, *_r) in enumerate(colunas)}
     ws.cell(row=total_row, column=1, value=f"TOTAL — {len(itens)} item(ns)").font = Font(bold=True)
-    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=4)
+    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=5 if com_duimp else 4)
     for chave in COLUNAS_ITENS_TOTAL:
         col_idx = idx_por_chave[chave]
         total = sum(item.get(chave) or 0 for item in itens)
@@ -110,13 +116,15 @@ def _gerar_aba_itens(ws, itens: list[dict]) -> None:
             tot_cell.number_format = formato
 
 
-def _gerar_aba_detalhes(ws, cabecalho: dict, itens: list[dict]) -> None:
-    ws.cell(row=1, column=1, value="Tributos por Adição (como declarado na DI)").font = Font(bold=True, size=12)
+def _gerar_aba_detalhes(ws, cabecalho: dict, itens: list[dict], linha_inicial: int = 1) -> int:
+    """Escreve a seção de Detalhes a partir de `linha_inicial` e devolve a
+    próxima linha livre (permite empilhar várias DUIMPs na mesma aba)."""
+    ws.cell(row=linha_inicial, column=1, value="Tributos por Adição (como declarado na DI)").font = Font(bold=True, size=12)
 
     titulos_adicao = ["Adição", "NCM", "II (R$)", "IPI (R$)", "Taxa Siscomex (R$)",
                        "Base de Cálculo PIS/COFINS (R$)", "PIS (R$)", "COFINS (R$)"]
     larguras_adicao = [12, 16, 14, 14, 16, 26, 14, 14]
-    row = 3
+    row = linha_inicial + 2
     _cabecalho_tabela(ws, row, titulos_adicao, larguras_adicao)
     row += 1
 
@@ -169,10 +177,11 @@ def _gerar_aba_detalhes(ws, cabecalho: dict, itens: list[dict]) -> None:
         for col_idx, (chave, _, _) in enumerate(COLUNAS_TRIBUTACAO_ITEM, start=1):
             ws.cell(row=row, column=col_idx, value=item.get(chave))
         row += 1
+    return row
 
 
-def _gerar_aba_resumo(ws, cabecalho: dict, qtd_itens: int) -> None:
-    linhas = [
+def _linhas_resumo(cabecalho: dict, qtd_itens: int) -> list[tuple]:
+    return [
         ("Número da DUIMP", cabecalho.get("duimp_numero")),
         ("Versão", cabecalho.get("versao")),
         ("Importador — CNPJ", cabecalho.get("importador_cnpj")),
@@ -194,14 +203,22 @@ def _gerar_aba_resumo(ws, cabecalho: dict, qtd_itens: int) -> None:
         ("Quantidade de Adições", len(cabecalho.get("adicoes") or [])),
     ]
 
-    ws.column_dimensions["A"].width = 28
-    ws.column_dimensions["B"].width = 90
-    for row_idx, (campo, valor) in enumerate(linhas, start=1):
-        c1 = ws.cell(row=row_idx, column=1, value=campo)
-        c1.font = Font(bold=True)
-        ws.cell(row=row_idx, column=2, value=valor)
 
-    nota_row = len(linhas) + 2
+def _gerar_aba_resumo(ws, duimps: list[tuple[dict, int]]) -> None:
+    """`duimps` = [(cabecalho, qtd_itens), ...] — uma coluna de valores por DUIMP
+    (com uma só, o resultado é o mesmo de sempre: campo na A, valor na B)."""
+    colunas = [_linhas_resumo(cab, qtd) for cab, qtd in duimps]
+    ws.column_dimensions["A"].width = 28
+    largura = 90 if len(duimps) == 1 else 46
+    for j in range(len(duimps)):
+        ws.column_dimensions[get_column_letter(2 + j)].width = largura
+
+    for row_idx, (campo, _) in enumerate(colunas[0], start=1):
+        ws.cell(row=row_idx, column=1, value=campo).font = Font(bold=True)
+        for j, linhas in enumerate(colunas):
+            ws.cell(row=row_idx, column=2 + j, value=linhas[row_idx - 1][1])
+
+    nota_row = len(colunas[0]) + 2
     ws.cell(row=nota_row, column=1, value="Metodologia").font = Font(bold=True, size=12)
     nota = (
         "Tributos (II, IPI, PIS, COFINS) e encargos (frete, seguro, despesas aduaneiras) NÃO são "
@@ -217,8 +234,18 @@ def _gerar_aba_resumo(ws, cabecalho: dict, qtd_itens: int) -> None:
         "estimativa/inferência."
     )
     ws.cell(row=nota_row + 1, column=1, value=nota).alignment = Alignment(wrap_text=True)
-    ws.merge_cells(start_row=nota_row + 1, start_column=1, end_row=nota_row + 1, end_column=2)
+    ws.merge_cells(start_row=nota_row + 1, start_column=1, end_row=nota_row + 1, end_column=1 + len(duimps))
     ws.row_dimensions[nota_row + 1].height = 100
+
+
+def _gerar_aba_avisos(wb, avisos: list[str]) -> None:
+    if not avisos:
+        return
+    ws_avisos = wb.create_sheet("Avisos")
+    ws_avisos.cell(row=1, column=1, value="Avisos do processamento").font = Font(bold=True, size=12)
+    for i, aviso in enumerate(avisos, start=3):
+        ws_avisos.cell(row=i, column=1, value=aviso)
+    ws_avisos.column_dimensions["A"].width = 110
 
 
 def gerar_excel(cabecalho: dict, itens: list[dict], avisos: list[str]) -> bytes:
@@ -231,14 +258,44 @@ def gerar_excel(cabecalho: dict, itens: list[dict], avisos: list[str]) -> bytes:
     _gerar_aba_detalhes(ws_detalhes, cabecalho, itens)
 
     ws_resumo = wb.create_sheet("Resumo")
-    _gerar_aba_resumo(ws_resumo, cabecalho, len(itens))
+    _gerar_aba_resumo(ws_resumo, [(cabecalho, len(itens))])
 
-    if avisos:
-        ws_avisos = wb.create_sheet("Avisos")
-        ws_avisos.cell(row=1, column=1, value="Avisos do processamento").font = Font(bold=True, size=12)
-        for i, aviso in enumerate(avisos, start=3):
-            ws_avisos.cell(row=i, column=1, value=aviso)
-        ws_avisos.column_dimensions["A"].width = 110
+    _gerar_aba_avisos(wb, avisos)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def gerar_excel_varios(duimps: list[dict], avisos: list[str]) -> bytes:
+    """
+    Excel consolidado de várias DUIMPs. Cada elemento de `duimps` é
+    {"cabecalho": {...}, "itens": [...]}.
+      - Itens: todos os itens, com a coluna "DUIMP" no início.
+      - Detalhes: uma seção por DUIMP, empilhadas.
+      - Resumo: uma coluna por DUIMP.
+    """
+    wb = Workbook()
+
+    todos_itens = []
+    for d in duimps:
+        numero = d["cabecalho"].get("duimp_numero")
+        for it in d["itens"]:
+            todos_itens.append({**it, "duimp_numero": numero})
+    ws_itens = wb.active
+    ws_itens.title = "Itens"
+    _gerar_aba_itens(ws_itens, todos_itens, com_duimp=True)
+
+    ws_detalhes = wb.create_sheet("Detalhes")
+    linha = 1
+    for d in duimps:
+        ws_detalhes.cell(row=linha, column=1, value=f"DUIMP {d['cabecalho'].get('duimp_numero')}").font = Font(bold=True, size=14)
+        linha = _gerar_aba_detalhes(ws_detalhes, d["cabecalho"], d["itens"], linha_inicial=linha + 2) + 3
+
+    ws_resumo = wb.create_sheet("Resumo")
+    _gerar_aba_resumo(ws_resumo, [(d["cabecalho"], len(d["itens"])) for d in duimps])
+
+    _gerar_aba_avisos(wb, avisos)
 
     buf = io.BytesIO()
     wb.save(buf)

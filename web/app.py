@@ -93,7 +93,10 @@ from src.utilidades.duimp.calculos import (
     aplicar_rateio_siscomex as aplicar_rateio_siscomex_duimp,
     calcular_data_vencimento as calcular_data_vencimento_duimp,
 )
-from src.utilidades.duimp.writer import gerar_excel as gerar_excel_duimp
+from src.utilidades.duimp.writer import (
+    gerar_excel as gerar_excel_duimp,
+    gerar_excel_varios as gerar_excel_varios_duimp,
+)
 from src.utilidades.dacte.parser import extrair_todos as extrair_todos_dacte
 from src.utilidades.dacte.writer import gerar_excel as gerar_excel_dacte
 from src.utilidades.xml_nfe.parser import extrair as extrair_xml_nfe
@@ -962,34 +965,72 @@ async def tributofacil_dirbi_processar(arquivo: UploadFile = File(...)):
 
 
 @app.post("/utilidades/duimp/processar", dependencies=[Depends(require_auth)])
-async def utilidades_duimp_processar(arquivo: UploadFile = File(...)):
+async def utilidades_duimp_processar(arquivos: list[UploadFile] = File(...)):
     try:
-        conteudo = await arquivo.read()
-        try:
-            resultado = extrair_duimp(conteudo)
-        except ValueError as e:
-            raise HTTPException(status_code=422, detail=str(e))
+        varios = len(arquivos) > 1
+        duimps = []
+        avisos = []
+        vistos: dict = {}  # (numero, versao) -> nome do arquivo já lido
 
-        cabecalho = resultado["cabecalho"]
-        itens = resultado["itens"]
-        avisos = aplicar_rateio_peso_bruto_duimp(cabecalho, itens)
-        avisos += inferir_numero_adicao_duimp(cabecalho, itens)
-        avisos += aplicar_rateio_siscomex_duimp(cabecalho, itens)
-        avisos += calcular_data_vencimento_duimp(itens)
+        for arquivo in arquivos:
+            conteudo = await arquivo.read()
+            try:
+                resultado = extrair_duimp(conteudo)
+            except Exception as e:
+                if not varios:
+                    if isinstance(e, ValueError):
+                        raise HTTPException(status_code=422, detail=str(e))
+                    raise
+                avisos.append(f"{arquivo.filename}: não foi possível ler a DUIMP — {e}")
+                continue
 
-        excel_bytes = gerar_excel_duimp(cabecalho, itens, avisos)
+            cabecalho = resultado["cabecalho"]
+            itens = resultado["itens"]
+            numero = cabecalho.get("duimp_numero")
+            chave = (numero, cabecalho.get("versao"))
+            if numero and chave in vistos:
+                avisos.append(
+                    f"{arquivo.filename}: DUIMP {numero} (versão {chave[1]}) já foi lida em "
+                    f"{vistos[chave]} — arquivo ignorado para não duplicar os itens."
+                )
+                continue
+            vistos[chave] = arquivo.filename
+
+            avisos_duimp = aplicar_rateio_peso_bruto_duimp(cabecalho, itens)
+            avisos_duimp += inferir_numero_adicao_duimp(cabecalho, itens)
+            avisos_duimp += aplicar_rateio_siscomex_duimp(cabecalho, itens)
+            avisos_duimp += calcular_data_vencimento_duimp(itens)
+            prefixo = f"[DUIMP {numero}] " if varios else ""
+            avisos.extend(f"{prefixo}{a}" for a in avisos_duimp)
+            duimps.append({"cabecalho": cabecalho, "itens": itens})
+
+        if not duimps:
+            raise HTTPException(status_code=422, detail="Nenhuma DUIMP válida encontrada nos arquivos enviados.")
+
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        numero = (cabecalho.get("duimp_numero") or ts).replace("/", "-")
-        filename = f"DUIMP_{numero}.xlsx"
+        if len(duimps) == 1:
+            cabecalho = duimps[0]["cabecalho"]
+            excel_bytes = gerar_excel_duimp(cabecalho, duimps[0]["itens"], avisos)
+            numero = (cabecalho.get("duimp_numero") or ts).replace("/", "-")
+            filename = f"DUIMP_{numero}.xlsx"
+            numero_header = str(cabecalho.get("duimp_numero") or "")
+        else:
+            excel_bytes = gerar_excel_varios_duimp(duimps, avisos)
+            filename = f"DUIMP_consolidado_{ts}.xlsx"
+            numero_header = f"{len(duimps)} DUIMPs"
+
+        valor_aduaneiro = sum(d["cabecalho"].get("valor_aduaneiro_brl") or 0 for d in duimps)
+        qtd_itens = sum(len(d["itens"]) for d in duimps)
 
         return StreamingResponse(
             iter([excel_bytes]),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
-                "X-Duimp-Numero": str(cabecalho.get("duimp_numero") or ""),
-                "X-Duimp-Qtd-Itens": str(len(itens)),
-                "X-Duimp-Valor-Aduaneiro": f"{cabecalho.get('valor_aduaneiro_brl') or 0:.2f}",
+                "X-Duimp-Numero": numero_header,
+                "X-Duimp-Qtd-Duimps": str(len(duimps)),
+                "X-Duimp-Qtd-Itens": str(qtd_itens),
+                "X-Duimp-Valor-Aduaneiro": f"{valor_aduaneiro:.2f}",
                 "X-Duimp-Qtd-Avisos": str(len(avisos)),
             },
         )

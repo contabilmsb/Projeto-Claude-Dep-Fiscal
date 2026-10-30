@@ -36,6 +36,10 @@ import re
 import pandas as pd
 
 
+def _brl(v: float) -> str:
+    return f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def aplicar_rateio_peso_bruto(cabecalho: dict, itens: list[dict]) -> list[str]:
     """Adiciona a cada item (in place) o peso bruto rateado. Retorna avisos."""
     avisos = []
@@ -203,8 +207,8 @@ def aplicar_rateio_siscomex(cabecalho: dict, itens: list[dict]) -> list[str]:
             "repetição de dados na DUIMP." if duplicadas else ""
         )
         avisos.append(
-            f"A soma da Taxa Siscomex declarada por adição (R$ {soma_adicoes:,.2f}) não fecha com o "
-            f"total do processo (R$ {taxa_siscomex_total:,.2f}); o rateio por item usa o valor "
+            f"A soma da Taxa Siscomex declarada por adição (R$ {_brl(soma_adicoes)}) não fecha com o "
+            f"total do processo (R$ {_brl(taxa_siscomex_total)}); o rateio por item usa o valor "
             f"declarado em cada adição.{detalhe} Confira contra a DUIMP."
         )
 
