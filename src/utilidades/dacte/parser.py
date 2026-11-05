@@ -65,6 +65,42 @@ def _extrai_numero_e_data(texto: str) -> tuple[str | None, str | None]:
     return numero, data_emissao
 
 
+_RE_LAYOUT_SSW = re.compile(r"S[ÉE]RIE\s+N[ÚU]MERO\s+MODAL\s+MODELO")
+
+
+def _eh_layout_ssw(texto: str) -> bool:
+    """Leiaute do sistema SSW (ex.: Camilo dos Santos): o cabeçalho traz
+    "SÉRIE NÚMERO MODAL MODELO Nº PROTOCOLO" e a data fica na linha de
+    "AUTORIZAÇÃO FL"."""
+    return bool(_RE_LAYOUT_SSW.search(texto))
+
+
+def _data_com_ano_4_digitos(data: str) -> str:
+    dia, mes, ano = data.split("/")
+    return f"{dia}/{mes}/{ano if len(ano) == 4 else '20' + ano}"
+
+
+def _extrai_numero_e_data_ssw(texto: str) -> tuple[str | None, str | None]:
+    """Número: "<série> <9 dígitos> <modal> 57 <protocolo>" (âncora no 57 do
+    modelo). Data: linha logo abaixo de "AUTORIZAÇÃO FL" (dd/mm/aa hh:mm 1/1)."""
+    numero = data = None
+    m = re.search(rf"\b\d{{1,3}}\s+(\d{{9}})\s+[^\W\d_]+\s+{_MOD_CTE}\s+\d{{10,}}", texto)
+    if m:
+        numero = m.group(1).lstrip("0") or "0"
+    d = re.search(
+        r"AUTORIZA[ÇC][ÃA]O\s+FL\s*\n[^\n]*?(\d{2}/\d{2}/\d{2,4})\s+\d{2}:\d{2}\s+\d+/\d+", texto
+    )
+    if d:
+        data = _data_com_ano_4_digitos(d.group(1))
+    return numero, data
+
+
+def _extrai_aliquota_icms_ssw(texto: str) -> float | None:
+    """"ALIQ DIFAL/ICMS(%) <difal> <icms>" — a alíquota do ICMS é o segundo valor."""
+    m = re.search(r"ALIQ\s+DIFAL/ICMS\(%\)\s+([\d.,]+)\s+([\d.,]+)", texto)
+    return _to_float(m.group(2)) if m else None
+
+
 def _valida_chave(digitos: str) -> bool:
     return len(digitos) == 44 and digitos[20:22] == _MOD_CTE
 
@@ -99,7 +135,7 @@ def _extrai_chave_acesso(texto: str) -> str | None:
 
 
 def _extrai_valor_a_receber(texto: str) -> float | None:
-    m = re.search(r"VALOR A RECEBER\s*\n\s*([\d.,]+)", texto)
+    m = re.search(r"VALOR A RECEBER(?:\s*\(R\$\))?\s+([\d.,]+)", texto)
     return _to_float(m.group(1)) if m else None
 
 
@@ -125,8 +161,8 @@ def _extrai_aliquota_icms(texto: str) -> float | None:
 
 
 def _eh_pagina_dacte(texto_pagina: str) -> bool:
-    return "VALOR A RECEBER" in texto_pagina and bool(
-        re.search(r"MODELO\s+S[ÉE]RIE\s+N[ÚU]MERO", texto_pagina)
+    return "VALOR A RECEBER" in texto_pagina and (
+        bool(re.search(r"MODELO\s+S[ÉE]RIE\s+N[ÚU]MERO", texto_pagina)) or _eh_layout_ssw(texto_pagina)
     )
 
 
@@ -173,27 +209,37 @@ def extrair_todos(conteudo_pdf: bytes, nome_arquivo: str) -> tuple[list[dict], l
     (continuação) são juntadas ao documento anterior; páginas de fatura são
     ignoradas na extração e usadas só para conferir quantidade e total.
     """
+    paginas: list[str] = []
+    fontes: list[str] = []  # texto separado por fonte (só nas páginas do leiaute SSW)
     with pdfplumber.open(io.BytesIO(conteudo_pdf)) as pdf:
-        paginas = [p.extract_text() or "" for p in pdf.pages]
+        for p in pdf.pages:
+            texto = p.extract_text() or ""
+            paginas.append(texto)
+            # No leiaute SSW a chave de acesso (fonte 7pt) é impressa sobre uma
+            # frase em outra fonte (5pt), e a extração comum intercala os
+            # caracteres das duas; separar por fonte devolve a chave inteira.
+            fontes.append(p.extract_text(extra_attrs=["fontname", "size"]) or "" if _eh_layout_ssw(texto) else "")
 
-    grupos: list[dict] = []  # {"pagina": n, "textos": [..]}
+    grupos: list[dict] = []  # {"pagina": n, "textos": [..], "fontes": [..]}
     textos_fatura: list[str] = []
     for n, texto in enumerate(paginas, start=1):
         if _eh_pagina_dacte(texto):
-            grupos.append({"pagina": n, "textos": [texto]})
+            grupos.append({"pagina": n, "textos": [texto], "fontes": [fontes[n - 1]]})
         elif _eh_pagina_fatura(texto):
             textos_fatura.append(texto)
         elif grupos:
             grupos[-1]["textos"].append(texto)
+            grupos[-1]["fontes"].append(fontes[n - 1])
 
     if not grupos:  # nenhuma página reconhecida: tenta o arquivo todo como um documento
-        grupos = [{"pagina": 1, "textos": paginas}]
+        grupos = [{"pagina": 1, "textos": paginas, "fontes": fontes}]
 
     varios = len(grupos) > 1
     linhas = [
         _extrai_documento(
             "\n".join(g["textos"]),
             f"{nome_arquivo} (p. {g['pagina']})" if varios else nome_arquivo,
+            "\n".join(g["fontes"]),
         )
         for g in grupos
     ]
@@ -201,12 +247,17 @@ def extrair_todos(conteudo_pdf: bytes, nome_arquivo: str) -> tuple[list[dict], l
     return linhas, avisos_gerais
 
 
-def _extrai_documento(texto: str, nome_arquivo: str) -> dict:
+def _extrai_documento(texto: str, nome_arquivo: str, texto_fontes: str = "") -> dict:
     """Extrai os campos de um único DACTE a partir do texto dele."""
-    numero_cte, data_emissao = _extrai_numero_e_data(texto)
-    chave_acesso = _extrai_chave_acesso(texto)
+    if _eh_layout_ssw(texto):
+        numero_cte, data_emissao = _extrai_numero_e_data_ssw(texto)
+        chave_acesso = _extrai_chave_acesso(texto_fontes) or _extrai_chave_acesso(texto)
+        aliquota_icms = _extrai_aliquota_icms_ssw(texto)
+    else:
+        numero_cte, data_emissao = _extrai_numero_e_data(texto)
+        chave_acesso = _extrai_chave_acesso(texto)
+        aliquota_icms = _extrai_aliquota_icms(texto)
     valor_a_receber = _extrai_valor_a_receber(texto)
-    aliquota_icms = _extrai_aliquota_icms(texto)
 
     avisos = []
     if not numero_cte:
