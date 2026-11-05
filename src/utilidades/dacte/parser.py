@@ -95,6 +95,44 @@ def _extrai_numero_e_data_ssw(texto: str) -> tuple[str | None, str | None]:
     return numero, data
 
 
+_ATRIBUTOS_FONTE = ["fontname", "size"]
+
+
+def _partes_ssw(pagina) -> list[tuple[str, str]]:
+    """
+    Devolve [(texto, texto_por_fonte), ...], um por DACTE da página.
+
+    No leiaute SSW a folha traz mais de um DACTE em faixas separadas por uma
+    linha "Corte aqui" — e a camada de texto pode ir além da borda visível da
+    página (há folhas em que o 2º DACTE começa em y≈856, numa página de 842).
+    Algumas folhas ainda trazem, entre dois DACTEs limpos, uma faixa com os
+    dois impressos um sobre o outro (letras intercaladas), que não dá para ler
+    e é só redundância dos dois limpos.
+
+    Cada DACTE tem um cabeçalho "AUTORIZAÇÃO FL". A faixa de cada um vai da
+    linha "Corte aqui" imediatamente acima do cabeçalho até a imediatamente
+    abaixo — o que deixa de fora a faixa sobreposta.
+    """
+    palavras = pagina.extract_words()
+    topos = sorted(w["top"] for w in palavras if w["text"].startswith("AUTORIZA"))
+    if len(topos) <= 1:
+        return [(
+            pagina.extract_text() or "",
+            pagina.extract_text(extra_attrs=_ATRIBUTOS_FONTE) or "",
+        )]
+    cortes = sorted(w["top"] for w in palavras if w["text"] == "Corte")
+    partes = []
+    for topo in topos:
+        baixo = max((c for c in cortes if c < topo), default=float("-inf"))
+        alto = min((c for c in cortes if c > topo), default=float("inf"))
+        chars = [c for c in pagina.chars if baixo <= c["top"] < alto]
+        partes.append((
+            pdfplumber.utils.extract_text(chars) or "",
+            pdfplumber.utils.extract_text(chars, extra_attrs=_ATRIBUTOS_FONTE) or "",
+        ))
+    return partes
+
+
 def _extrai_aliquota_icms_ssw(texto: str) -> float | None:
     """"ALIQ DIFAL/ICMS(%) <difal> <icms>" — a alíquota do ICMS é o segundo valor."""
     m = re.search(r"ALIQ\s+DIFAL/ICMS\(%\)\s+([\d.,]+)\s+([\d.,]+)", texto)
@@ -209,41 +247,64 @@ def extrair_todos(conteudo_pdf: bytes, nome_arquivo: str) -> tuple[list[dict], l
     (continuação) são juntadas ao documento anterior; páginas de fatura são
     ignoradas na extração e usadas só para conferir quantidade e total.
     """
-    paginas: list[str] = []
-    fontes: list[str] = []  # texto separado por fonte (só nas páginas do leiaute SSW)
+    # Cada entrada é um "bloco" de texto: normalmente uma página; no leiaute SSW,
+    # uma página com dois DACTEs vira dois blocos.
+    blocos: list[dict] = []  # {"rotulo": "p. 4", "texto": str, "fontes": str}
     with pdfplumber.open(io.BytesIO(conteudo_pdf)) as pdf:
-        for p in pdf.pages:
+        for n, p in enumerate(pdf.pages, start=1):
             texto = p.extract_text() or ""
-            paginas.append(texto)
-            # No leiaute SSW a chave de acesso (fonte 7pt) é impressa sobre uma
-            # frase em outra fonte (5pt), e a extração comum intercala os
-            # caracteres das duas; separar por fonte devolve a chave inteira.
-            fontes.append(p.extract_text(extra_attrs=["fontname", "size"]) or "" if _eh_layout_ssw(texto) else "")
+            if _eh_layout_ssw(texto):
+                # A chave de acesso (fonte 7pt) é impressa sobre uma frase em outra
+                # fonte (5pt), e a extração comum intercala os caracteres das duas;
+                # separar por fonte devolve a chave inteira.
+                partes = _partes_ssw(p)
+                for k, (t, f) in enumerate(partes, start=1):
+                    rotulo = f"p. {n}" if len(partes) == 1 else f"p. {n} – {k}º DACTE"
+                    blocos.append({"rotulo": rotulo, "texto": t, "fontes": f})
+            else:
+                blocos.append({"rotulo": f"p. {n}", "texto": texto, "fontes": ""})
 
-    grupos: list[dict] = []  # {"pagina": n, "textos": [..], "fontes": [..]}
+    grupos: list[dict] = []  # {"rotulo": str, "textos": [..], "fontes": [..]}
     textos_fatura: list[str] = []
-    for n, texto in enumerate(paginas, start=1):
-        if _eh_pagina_dacte(texto):
-            grupos.append({"pagina": n, "textos": [texto], "fontes": [fontes[n - 1]]})
-        elif _eh_pagina_fatura(texto):
-            textos_fatura.append(texto)
+    for bloco in blocos:
+        if _eh_pagina_dacte(bloco["texto"]):
+            grupos.append({"rotulo": bloco["rotulo"], "textos": [bloco["texto"]], "fontes": [bloco["fontes"]]})
+        elif _eh_pagina_fatura(bloco["texto"]):
+            textos_fatura.append(bloco["texto"])
         elif grupos:
-            grupos[-1]["textos"].append(texto)
-            grupos[-1]["fontes"].append(fontes[n - 1])
+            grupos[-1]["textos"].append(bloco["texto"])
+            grupos[-1]["fontes"].append(bloco["fontes"])
 
     if not grupos:  # nenhuma página reconhecida: tenta o arquivo todo como um documento
-        grupos = [{"pagina": 1, "textos": paginas, "fontes": fontes}]
+        grupos = [{
+            "rotulo": "p. 1",
+            "textos": [b["texto"] for b in blocos],
+            "fontes": [b["fontes"] for b in blocos],
+        }]
 
     varios = len(grupos) > 1
-    linhas = [
-        _extrai_documento(
+    linhas = []
+    avisos_gerais: list[str] = []
+    vistas: dict[str, str] = {}  # chave de acesso -> rótulo onde apareceu primeiro
+    for g in grupos:
+        doc = _extrai_documento(
             "\n".join(g["textos"]),
-            f"{nome_arquivo} (p. {g['pagina']})" if varios else nome_arquivo,
+            f"{nome_arquivo} ({g['rotulo']})" if varios else nome_arquivo,
             "\n".join(g["fontes"]),
         )
-        for g in grupos
-    ]
-    avisos_gerais = _confere_fatura("\n".join(textos_fatura), linhas, nome_arquivo) if textos_fatura else []
+        chave = doc["chave_acesso"]
+        if chave and chave in vistas:
+            avisos_gerais.append(
+                f"{nome_arquivo}: o CT-e {doc['numero_cte']} aparece mais de uma vez no arquivo "
+                f"({vistas[chave]} e {g['rotulo']}, por exemplo cópia/via) — contado uma única vez."
+            )
+            continue
+        if chave:
+            vistas[chave] = g["rotulo"]
+        linhas.append(doc)
+
+    if textos_fatura:
+        avisos_gerais += _confere_fatura("\n".join(textos_fatura), linhas, nome_arquivo)
     return linhas, avisos_gerais
 
 
