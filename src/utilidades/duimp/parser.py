@@ -11,6 +11,7 @@ exato (o texto do rótulo, ex. "Número do Lote"), não por posição — a orde
 campos varia de um item para outro no mesmo extrato.
 """
 
+import html
 import io
 import re
 
@@ -57,7 +58,7 @@ def _clean_page_text(text: str) -> str:
     return "\n".join(linhas)
 
 
-def _find_value(text: str, label: str, multiline: bool = False):
+def _find_value(text: str, label: str, multiline: bool = False, max_linhas: int = 4):
     linhas = [l.rstrip() for l in text.split("\n")]
     for i, l in enumerate(linhas):
         if l.strip() != label:
@@ -82,7 +83,7 @@ def _find_value(text: str, label: str, multiline: bool = False):
                 break
             partes.append(prox)
             j += 1
-            if len(partes) >= 4:
+            if len(partes) >= max_linhas:
                 break
         return " ".join(partes) if partes else None
     return None
@@ -102,6 +103,15 @@ def _parse_item(numero_item: int, texto: str) -> dict:
 
     d["ncm"] = _find_value(texto, "NCM:")
     d["part_number"] = _find_value(texto, "Part number")
+    if not d["part_number"]:
+        # Nem todo item traz o campo "Part number" — o código do produto
+        # também está na linha "Código do produto: Versão:", no formato
+        # "<nº> - <CÓDIGO> - <descrição truncada>" (ex.: "47 - MP0000449 - CAT...").
+        v = _find_value(texto, "Código do produto: Versão:")
+        if v:
+            m = re.match(r"^\d+\s+-\s+(\S+)\s+-\s+", v)
+            if m:
+                d["part_number"] = m.group(1)
     d["fabricante_legal"] = _find_value(texto, "Fabricante Legal")
     if not d["fabricante_legal"]:
         # "Fabricante Legal" só aparece quando declarado separadamente
@@ -114,7 +124,12 @@ def _parse_item(numero_item: int, texto: str) -> dict:
             m = re.match(r"^(\S+) - (.+?)\s+\d+(?:\.\d+)?$", v)
             d["fabricante_legal"] = m.group(2) if m else v
     d["numero_snvs"] = _find_value(texto, "Número de regularização no SNVS")
-    d["descricao_complementar"] = _find_value(texto, "Descrição complementar da mercadoria:", multiline=True)
+    desc = _find_value(texto, "Descrição complementar da mercadoria:", multiline=True)
+    if not desc or desc.strip() in ("-", "—", "–"):
+        # Quando a descrição complementar vem vazia ("-"), usa o
+        # "Detalhamento do Produto" (descrição completa do item).
+        desc = _find_value(texto, "Detalhamento do Produto:", multiline=True, max_linhas=12)
+    d["descricao_complementar"] = html.unescape(desc) if desc else desc
     d["numero_lote"] = _find_value(texto, "Número do Lote")
     d["data_fabricacao"] = _find_value(texto, "Data de fabricação do bem/produto Anvisa")
     d["cclasstrib"] = _find_value(texto, "Código de Class. Tributária (cClassTrib)", multiline=True)
@@ -355,8 +370,12 @@ def _parse_cabecalho_v3(texto: str) -> dict:
         r"COFINS\s*:\s*[\d,]+%\s*RED:\s*[\d,]+%\s*BRL\s*([\d.,]+)",
         texto,
     ):
+        # "Valor MLE" (valor da mercadoria no local de embarque, em R$) desta
+        # adição — está entre o "VALOR ADUANEIRO" e o "Valor Frete".
+        mle = re.search(r"Valor MLE\s*:\s*BRL\s*([\d.,]+)", m.group(0))
         adicoes.append({
             "numero": m.group(1), "ncm": m.group(2),
+            "valor_mle": _to_float(mle.group(1)) if mle else None,
             "taxa_siscomex": _to_float(m.group(3)),
             "ii_valor": _to_float(m.group(4)), "ipi_valor": _to_float(m.group(5)),
             "base_pis_cofins": _to_float(m.group(6)),

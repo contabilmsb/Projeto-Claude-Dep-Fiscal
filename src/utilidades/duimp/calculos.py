@@ -62,6 +62,71 @@ def aplicar_rateio_peso_bruto(cabecalho: dict, itens: list[dict]) -> list[str]:
     return avisos
 
 
+def _casar_itens_por_valor(itens: list[dict], adicoes: list[dict], taxa_dolar):
+    """
+    Distribui os itens entre as adições (todas com o mesmo NCM) de modo que a
+    soma dos valores dos itens em R$ (valor total na condição de venda × taxa
+    do dólar) feche com o "Valor MLE" de cada adição. Cada adição só recebe
+    itens do mesmo fabricante/produtor. Retorna {id(item): nº da adição} se
+    houver exatamente uma distribuição possível; senão, None.
+    """
+    if isinstance(taxa_dolar, str):
+        try:
+            taxa_dolar = float(taxa_dolar.replace(".", "").replace(",", "."))
+        except ValueError:
+            return None
+    if not taxa_dolar or any(a.get("valor_mle") is None for a in adicoes):
+        return None
+    if any(it.get("valor_total_venda") is None for it in itens):
+        return None
+
+    valores = [round(it["valor_total_venda"] * taxa_dolar, 2) for it in itens]
+    alvos = [a["valor_mle"] for a in adicoes]
+    # Tolerância de arredondamento: ~1 centavo por item + folga.
+    tol = [0.05 + 0.01 * len(itens)] * len(adicoes)
+
+    # Se a soma dos itens não fecha com a soma das adições, nem tenta.
+    if abs(sum(valores) - sum(alvos)) > tol[0] * 2:
+        return None
+
+    soma = [0.0] * len(adicoes)
+    fab = [None] * len(adicoes)
+    qtd = [0] * len(adicoes)
+    escolha = [None] * len(itens)
+    solucoes = []
+    nos = [0]
+
+    def busca(i):
+        if len(solucoes) > 1 or nos[0] > 300_000:
+            return
+        nos[0] += 1
+        if i == len(itens):
+            if all(qtd[k] > 0 and abs(soma[k] - alvos[k]) <= tol[k] for k in range(len(adicoes))):
+                solucoes.append(list(escolha))
+            return
+        f_item = itens[i].get("fabricante_legal")
+        for k in range(len(adicoes)):
+            if qtd[k] and fab[k] != f_item:
+                continue
+            if soma[k] + valores[i] > alvos[k] + tol[k]:
+                continue
+            fab_ant = fab[k]
+            soma[k] += valores[i]
+            qtd[k] += 1
+            fab[k] = f_item
+            escolha[i] = k
+            busca(i + 1)
+            soma[k] -= valores[i]
+            qtd[k] -= 1
+            fab[k] = fab_ant if qtd[k] else None
+            escolha[i] = None
+
+    busca(0)
+    if len(solucoes) != 1:
+        return None
+    return {id(itens[i]): adicoes[k]["numero"] for i, k in enumerate(solucoes[0])}
+
+
 def inferir_numero_adicao(cabecalho: dict, itens: list[dict]) -> list[str]:
     """
     Adiciona a cada item (in place) o número da adição inferido. Retorna avisos.
@@ -107,6 +172,7 @@ def inferir_numero_adicao(cabecalho: dict, itens: list[dict]) -> list[str]:
         itens_por_ncm.setdefault(normaliza_ncm(it.get("ncm")), []).append(it)
 
     algum_ambiguo_resolvido = False
+    algum_casou_por_valor = False
     algum_nao_resolvido = False
 
     for ncm, grupo_itens in itens_por_ncm.items():
@@ -121,8 +187,17 @@ def inferir_numero_adicao(cabecalho: dict, itens: list[dict]) -> list[str]:
             algum_nao_resolvido = True
             continue
 
-        # NCM presente em mais de uma adição — desempata por
-        # fabricante/produtor, na ordem em que os itens aparecem.
+        # NCM presente em mais de uma adição — 1º tenta casar pelo valor
+        # (Valor MLE da adição = soma dos itens × taxa do dólar), que
+        # resolve até quando uma adição divide os itens de um mesmo
+        # fabricante em duas; 2º desempata por fabricante/produtor.
+        mapa_valor = _casar_itens_por_valor(grupo_itens, candidatas, cabecalho.get("taxa_dolar"))
+        if mapa_valor:
+            for it in grupo_itens:
+                it["numero_adicao"] = mapa_valor.get(id(it))
+            algum_casou_por_valor = True
+            continue
+
         fabricantes_ordem = []
         for it in grupo_itens:
             fab = it.get("fabricante_legal")
@@ -142,6 +217,9 @@ def inferir_numero_adicao(cabecalho: dict, itens: list[dict]) -> list[str]:
             "A coluna \"Número da Adição\" é uma INFERÊNCIA: a DUIMP não declara essa informação por "
             "item, apenas o resumo agregado por adição. A associação usa o NCM do item comparado ao "
             "NCM de cada adição" + (
+                ", e, quando o mesmo NCM aparece em mais de uma adição, o Valor MLE de cada adição "
+                "(soma dos valores dos itens × taxa do dólar)" if algum_casou_por_valor else ""
+            ) + (
                 ", desempatando pelo fabricante/produtor (na ordem em que aparecem) quando o mesmo "
                 "NCM aparece em mais de uma adição" if algum_ambiguo_resolvido else ""
             ) + " — confira contra a DI antes de usar para fins fiscais."
